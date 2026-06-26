@@ -1,0 +1,3266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>물류 프로세스 매니저</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+KR:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>try{if(localStorage.getItem('freight_theme')==='light')document.documentElement.classList.add('theme-light');}catch(e){}</script>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #222638; --border: #2e3250;
+    --accent: #4f8fff; --accent2: #00d4aa; --warn: #ff6b35;
+    --text: #e8eaf0; --text-dim: #7880a0; --done: #00d4aa;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'Noto Sans KR', sans-serif;
+  }
+  html.theme-light {
+    --bg: #f4f5f7; --surface: #ffffff; --surface2: #eceef2; --border: #d7dbe3;
+    --accent: #2563eb; --accent2: #0d9488; --warn: #d9531e;
+    --text: #1a1d27; --text-dim: #687087; --done: #0d9488;
+  }
+  .settings-section-label { font-size: 11px; font-weight: 700; color: var(--text-dim); font-family: var(--mono); letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
+  .theme-toggle { display: flex; gap: 6px; }
+  .theme-opt { flex: 1; padding: 9px 0; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--mono); color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; }
+  .theme-opt:hover { color: var(--text); }
+  html:not(.theme-light) .theme-opt[data-theme="dark"], html.theme-light .theme-opt[data-theme="light"] { border-color: var(--accent); color: var(--accent); background: rgba(79,143,255,0.08); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* Header */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+  .logo span { color: var(--text-dim); }
+  .brand-logo { height: 64px; width: auto; display: block; color: var(--text); }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .save-status { font-family: var(--mono); font-size: 10px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+  .save-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+  /* Buttons */
+  .btn { padding: 7px 15px; border-radius: 6px; border: none; cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #6ba3ff; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: transparent; border: 1px solid #ff4444; color: #ff4444; font-size: 12px; padding: 4px 10px; }
+  .btn-danger:hover { background: #ff4444; color: #fff; }
+  .btn-icon { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-icon-xs { background: transparent; border: none; color: var(--text-dim); padding: 2px 5px; border-radius: 4px; cursor: pointer; font-size: 12px; line-height: 1; transition: all 0.15s; flex-shrink: 0; }
+  .btn-icon-xs:hover { background: var(--surface); color: var(--accent); }
+  .btn-lang { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 1px; transition: all 0.15s; }
+  .btn-lang:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+  .sidebar { width: 290px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .sidebar-title { font-size: 11px; font-family: var(--mono); color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+  .shipment-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .shipment-list::-webkit-scrollbar { width: 4px; }
+  .shipment-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+
+  /* Sidebar search */
+  .sidebar-search { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .sidebar-search .form-input { font-size: 12px; padding: 7px 10px; }
+  /* Top-level direction tabs (종합/수입/수출) */
+  .main-tabs { display: flex; gap: 5px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .main-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 7px 0; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: var(--text-dim); background: var(--surface2); border: 1px solid transparent; font-family: var(--mono); letter-spacing: 0.5px; transition: all 0.15s; }
+  .main-tab:hover { color: var(--text); }
+  .main-tab.active { color: var(--accent); border-color: var(--accent); background: var(--bg); }
+  .main-tab .mt-count { font-size: 10px; font-weight: 600; opacity: 0.65; font-family: var(--mono); }
+  /* 종합 overview */
+  .overview-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; }
+  .stat-tile { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; }
+  .stat-tile .stat-num { font-size: 21px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .stat-tile .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 5px; }
+  .overview-list-label { padding: 6px 14px 4px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.6px; }
+  /* Per-project inbound/outbound progress (종합), grouped by customer */
+  .proj-sector { padding: 10px 14px 4px; font-size: 12px; font-weight: 700; color: var(--accent); font-family: var(--mono); letter-spacing: 0.3px; }
+  .proj-prog { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; margin: 0 8px 6px; }
+  .proj-prog-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .proj-prog-row { display: flex; align-items: center; gap: 7px; margin-top: 4px; }
+  .ppr-icon { font-size: 11px; flex-shrink: 0; width: 14px; text-align: center; }
+  .ppr-bar { flex: 1; height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .ppr-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .ppr-val { font-size: 10px; font-family: var(--mono); color: var(--text); flex-shrink: 0; min-width: 66px; text-align: right; }
+  .ppr-frac { color: var(--text-dim); margin-left: 4px; }
+  .card-cust-tag { font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-top: 3px; }
+  /* 종합 dashboard (renders inside .content, which already scrolls + pads) */
+  .dashboard-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  .dashboard-title { font-size: 18px; font-weight: 700; margin: 0; }
+  .dash-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .gran-tabs { display: flex; gap: 5px; }
+  /* Multi-select year dropdown (checkbox list) */
+  .year-dd { position: relative; }
+  .year-dd-btn { list-style: none; padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--text); background: var(--surface2); border: 1px solid var(--border); cursor: pointer; white-space: nowrap; }
+  .year-dd-btn::-webkit-details-marker { display: none; }
+  .year-dd[open] .year-dd-btn, .year-dd-btn:hover { border-color: var(--accent); }
+  .year-dd-panel { position: absolute; top: calc(100% + 4px); right: 0; z-index: 50; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px; min-width: 140px; max-height: 300px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: flex; flex-direction: column; gap: 1px; }
+  .year-dd-item { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 6px; font-size: 12px; font-family: var(--mono); color: var(--text); cursor: pointer; background: none; border: none; text-align: left; width: 100%; }
+  .year-dd-item:hover { background: var(--surface2); }
+  .year-dd-item.all { color: var(--text-dim); border-bottom: 1px solid var(--border); border-radius: 0; margin-bottom: 4px; padding-bottom: 8px; }
+  .year-dd-item input { cursor: pointer; margin: 0; }
+  .gran-btn { padding: 6px 15px; border-radius: 7px; font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--text-dim); background: var(--surface2); border: 1px solid transparent; cursor: pointer; transition: all .15s; }
+  .gran-btn:hover { color: var(--text); }
+  .gran-btn.active { color: var(--accent); border-color: var(--accent); background: var(--bg); }
+  .cust-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px 14px; margin-bottom: 16px; }
+  .cust-panel-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; gap: 10px; flex-wrap: wrap; }
+  .cust-panel-name { font-size: 15px; font-weight: 700; }
+  .cust-panel-meta { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+  .trend-chart { width: 100%; height: auto; display: block; }
+  .chart-grid { stroke: var(--border); stroke-width: 1; }
+  .chart-ylabel { fill: var(--text-dim); font-size: 9px; font-family: var(--mono); text-anchor: end; }
+  .chart-xlabel { fill: var(--text-dim); font-size: 9px; font-family: var(--mono); text-anchor: middle; }
+  .chart-vlabel { font-size: 8.5px; font-family: var(--mono); text-anchor: middle; font-weight: 600; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; padding-left: 2px; }
+  .chart-leg { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); font-family: var(--mono); cursor: pointer; user-select: none; transition: opacity 0.15s; }
+  .chart-leg:hover { color: var(--text); }
+  .chart-leg.off { opacity: 0.45; text-decoration: line-through; }
+  .chart-leg-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; box-sizing: border-box; }
+  .chart-empty { padding: 28px; text-align: center; color: var(--text-dim); font-size: 12px; }
+  /* Inbound list screen */
+  .inb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .inb-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .inb-cust-tabs { display: flex; gap: 4px; margin-right: 6px; }
+  .inb-cust-tab { padding: 6px 13px; border-radius: 7px; font-size: 12px; font-weight: 700; font-family: var(--mono); color: var(--text-dim); background: var(--surface2); border: 1px solid transparent; cursor: pointer; transition: all 0.15s; }
+  .inb-cust-tab:hover { color: var(--text); }
+  .inb-cust-tab.active { color: var(--accent); border-color: var(--accent); background: var(--bg); }
+  .inb-status { margin-bottom: 12px; }
+  .inb-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .inb-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .inb-table th { background: var(--surface2); color: var(--text-dim); font-weight: 600; text-align: left; padding: 8px 10px; white-space: nowrap; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+  .inb-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  .inb-table tr:last-child td { border-bottom: none; }
+  .inb-table .inb-desc { max-width: 240px; }
+  .inb-table .inb-remark { font-family: var(--mono); color: var(--accent); white-space: nowrap; }
+  .inb-table input { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; color: var(--text); font-size: 12px; font-family: var(--sans); width: 110px; outline: none; }
+  .inb-table input:focus { border-color: var(--accent); }
+  .inb-table input[type=date] { width: 130px; }
+
+  /* Cards */
+  .shipment-card { padding: 12px 14px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; margin-bottom: 6px; transition: all 0.15s; }
+  /* Multi-select checkbox row wrapper */
+  .card-row { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+  .card-row .shipment-card { flex: 1; min-width: 0; margin-bottom: 0; }
+  .card-check { width: 16px; height: 16px; border: 1.5px solid var(--border); border-radius: 4px; flex-shrink: 0; cursor: pointer; position: relative; transition: all 0.15s; }
+  .card-check:hover { border-color: var(--accent); }
+  .card-check.checked { background: var(--accent); border-color: var(--accent); }
+  .card-check.checked::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; line-height: 1; }
+  .card-row.sel .shipment-card { border-color: var(--accent); }
+  .card-check.indet { border-color: var(--accent); }
+  .card-check.indet::after { content: '–'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--accent); line-height: 1; }
+  .select-master { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; font-family: var(--mono); color: var(--text-dim); cursor: pointer; }
+  .select-master:hover { color: var(--text); }
+  .select-bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px 8px; flex-wrap: wrap; }
+  .select-btn { font-size: 11px; font-weight: 600; font-family: var(--mono); color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; cursor: pointer; transition: all 0.15s; }
+  .select-btn:hover { color: var(--text); border-color: var(--accent); }
+  .select-btn.danger { color: var(--warn); border-color: var(--warn); }
+  .select-btn.danger:hover { background: var(--warn); color: #fff; }
+  .select-btn.ok { color: var(--accent2); border-color: var(--accent2); }
+  .select-btn.ok:hover { background: var(--accent2); color: #06281f; }
+  .select-count { font-size: 11px; color: var(--accent); font-family: var(--mono); font-weight: 600; margin-left: auto; }
+  .shipment-card:hover { background: var(--surface2); border-color: var(--border); }
+  .shipment-card.active { background: var(--surface2); border-color: var(--accent); }
+  .card-ref { font-family: var(--mono); font-size: 10px; color: var(--accent); margin-bottom: 3px; }
+  .card-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+  .card-progress-fill { height: 100%; border-radius: 2px; background: var(--accent2); transition: width 0.4s; }
+  .card-meta { display: flex; justify-content: space-between; align-items: center; }
+  .card-pct { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+
+  /* Compact cards (non in-progress items) */
+  .shipment-card.compact { padding: 7px 14px; }
+  .card-compact-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+  .shipment-card.compact .card-ref { margin-bottom: 0; }
+  .shipment-card.compact .card-name { margin-bottom: 0; font-size: 12px; }
+  .shipment-card.compact .status-badge { font-size: 9px; padding: 1px 7px; flex-shrink: 0; }
+
+  /* Badges */
+  .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+  .badge-inprogress { background: rgba(79,143,255,0.15); color: var(--accent); }
+  .badge-done { background: rgba(0,212,170,0.15); color: var(--done); }
+  .badge-pending { background: rgba(255,107,53,0.15); color: var(--warn); }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 28px 36px; }
+  .content::-webkit-scrollbar { width: 6px; }
+  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); }
+  .empty-icon { font-size: 52px; opacity: 0.35; }
+  .empty-hint { font-family: var(--mono); font-size: 11px; color: var(--border); margin-top: 4px; }
+
+  /* Detail */
+  .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .detail-ref { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px; }
+  .detail-title { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+  .detail-info { display: flex; gap: 18px; flex-wrap: wrap; }
+  .info-chip { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+  .info-chip strong { color: var(--text); font-weight: 600; }
+  /* Detail header: horizontal wrapping label-value pairs */
+  .detail-list { display: flex; flex-wrap: wrap; gap: 7px 22px; align-items: baseline; }
+  .info-pair { display: flex; align-items: baseline; gap: 6px; }
+  .detail-list .row-label { font-size: 10px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  .detail-list .row-value { font-size: 13px; color: var(--text); font-weight: 600; }
+  .detail-list .row-value.mono { font-family: var(--mono); color: var(--accent); }
+  .detail-list .row-value.muted { color: var(--text-dim); font-weight: 400; font-style: italic; font-size: 12px; }
+  .sections { display: flex; flex-direction: column; gap: 20px; }
+  .vessel-box, .checklist-box, .notes-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .box-header { padding: 12px 18px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .section-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); }
+  .vessel-timeline { padding: 18px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .vessel-node { display: flex; flex-direction: column; align-items: flex-start; min-width: 90px; }
+  .node-port { font-size: 14px; font-weight: 700; }
+  .node-date { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-top: 2px; }
+  .node-label { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+  .vessel-arrow { color: var(--text-dim); font-size: 16px; flex: 1; text-align: center; min-width: 40px; }
+  .vessel-name-row { padding: 0 18px 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .vessel-field { display: flex; flex-direction: column; gap: 2px; }
+  .vessel-field-label { font-size: 10px; color: var(--text-dim); }
+  .vessel-field-value { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .checklist-items { padding: 4px 0; }
+  .check-item { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--border); transition: background 0.12s; }
+  .check-item:last-child { border-bottom: none; }
+  .check-item:hover { background: var(--surface2); }
+  .check-item.checked { opacity: 0.6; }
+  .check-box { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
+  .check-box:hover { border-color: var(--accent2); }
+  .check-box.checked { background: var(--accent2); border-color: var(--accent2); }
+  .check-box.checked::after { content: '✓'; color: var(--bg); font-size: 11px; font-weight: 700; }
+  .check-label { flex: 1; font-size: 13px; }
+  .check-item.checked .check-label { text-decoration: line-through; color: var(--text-dim); }
+  .check-date { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+  .notes-textarea { width: 100%; background: transparent; border: none; color: var(--text); font-family: var(--sans); font-size: 13px; padding: 14px 18px; resize: none; outline: none; min-height: 90px; line-height: 1.7; }
+
+  /* Modal shared */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 580px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal::-webkit-scrollbar { width: 4px; }
+  .modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .form-group { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; }
+  .form-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; transition: border-color 0.15s; }
+  .form-input:focus { border-color: var(--accent); }
+  .form-hint { display: block; font-size: 10.5px; color: var(--text-dim); margin-top: 5px; line-height: 1.4; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .direction-toggle { display: flex; gap: 10px; }
+  .direction-radio { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-dim); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .direction-radio:hover { border-color: var(--accent); }
+  .direction-radio input { accent-color: var(--accent); }
+  .direction-radio:has(input:checked) { border-color: var(--accent); color: var(--accent); background: rgba(79,143,255,0.08); }
+  .modal-section-label { font-size: 10px; font-family: var(--mono); color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; display: block; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* PDF drop zone */
+  .pdf-drop { border: 2px dashed var(--border); border-radius: 10px; padding: 22px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); position: relative; margin-bottom: 14px; }
+  .pdf-drop:hover, .pdf-drop.dragover { border-color: var(--accent); background: rgba(79,143,255,0.05); }
+  .pdf-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .pdf-drop-icon { font-size: 26px; margin-bottom: 6px; }
+  .pdf-drop-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .pdf-drop-sub { font-size: 11px; color: var(--text-dim); }
+  .parse-status { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 14px; }
+  .parse-loading { background: rgba(79,143,255,0.08); border: 1px solid rgba(79,143,255,0.25); color: var(--accent); }
+  .parse-ok  { background: rgba(0,212,170,0.08);  border: 1px solid rgba(0,212,170,0.25);  color: var(--accent2); }
+  .parse-err { background: rgba(255,107,53,0.08);  border: 1px solid rgba(255,107,53,0.25);  color: var(--warn); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(79,143,255,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 16px; color: var(--text-dim); font-size: 11px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* Settings modal */
+  .settings-modal { width: 420px; }
+  .settings-sub { font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+  .api-key-wrap { position: relative; }
+  .api-key-wrap .form-input { padding-right: 72px; font-family: var(--mono); font-size: 12px; }
+  .toggle-key-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 2px 6px; }
+  .toggle-key-btn:hover { color: var(--text); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 18px; font-size: 13px; z-index: 9999; animation: slideup 0.3s ease; pointer-events: none; }
+  @keyframes slideup { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .hidden { display: none !important; }
+
+  /* Customer groups in sidebar */
+  .customer-group { margin-bottom: 2px; }
+  .customer-header { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .customer-header:hover { background: var(--surface2); }
+  .customer-toggle { font-size: 9px; color: var(--text-dim); width: 12px; flex-shrink: 0; transition: transform 0.2s; display: inline-block; }
+  .customer-name { flex: 1; font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .customer-count { font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: var(--surface2); padding: 1px 6px; border-radius: 10px; flex-shrink: 0; }
+  .customer-shipments { padding-left: 8px; }
+
+  /* Direction sub-groups in sidebar (Inbound/Outbound, under each customer) */
+  .dirgroup { margin-bottom: 2px; }
+  .dirgroup-header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .dirgroup-header:hover { background: var(--surface2); }
+  .dirgroup-toggle { font-size: 9px; color: var(--text-dim); width: 10px; flex-shrink: 0; transition: transform 0.2s; display: inline-block; }
+  .dirgroup-icon { font-size: 11px; flex-shrink: 0; }
+  .dirgroup-name { flex: 1; font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.5px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dirgroup-count { font-family: var(--mono); font-size: 9px; color: var(--text-dim); background: var(--bg); padding: 1px 6px; border-radius: 8px; flex-shrink: 0; }
+  .dirgroup-shipments { padding-left: 6px; }
+
+  /* Project groups in sidebar (under each direction sub-group) */
+  .project-group { margin-bottom: 2px; }
+  .project-header { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .project-header:hover { background: var(--surface2); }
+  .project-toggle { font-size: 8px; color: var(--text-dim); width: 10px; flex-shrink: 0; transition: transform 0.2s; display: inline-block; }
+  .project-name { flex: 1; font-size: 11px; font-weight: 500; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .project-count { font-family: var(--mono); font-size: 9px; color: var(--text-dim); background: var(--bg); padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
+  .project-shipments { padding-left: 8px; }
+
+  /* Customer selector (top-level list) & active-customer filter bar */
+  .customer-selector-hint { padding: 2px 10px 8px; font-size: 11px; color: var(--text-dim); }
+  .customer-nav-arrow { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
+  .customer-filter-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .customer-back-btn { font-size: 11px; font-weight: 600; color: var(--accent); background: transparent; border: none; cursor: pointer; font-family: var(--mono); padding: 3px 6px; border-radius: 4px; transition: background 0.15s; flex-shrink: 0; }
+  .customer-back-btn:hover { background: var(--surface2); }
+  .customer-filter-name { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* View-mode toggle (project / latest / item) inside the active-customer view */
+  .view-mode-bar { display: flex; gap: 4px; padding: 0 10px 8px; }
+  .view-dd { position: relative; margin: 0 10px 8px; }
+  .view-dd-head { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--text); background: var(--surface2); border: 1px solid var(--border); cursor: pointer; }
+  .view-dd-head::-webkit-details-marker { display: none; }
+  .view-dd[open] .view-dd-head, .view-dd-head:hover { border-color: var(--accent); }
+  .view-dd-caret { color: var(--text-dim); font-size: 10px; }
+  .view-dd-panel { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: flex; flex-direction: column; gap: 1px; }
+  .view-dd-opt { display: flex; align-items: center; justify-content: space-between; padding: 7px 9px; border-radius: 6px; font-size: 12px; font-family: var(--mono); color: var(--text); cursor: pointer; background: none; border: none; text-align: left; width: 100%; }
+  .view-dd-opt:hover { background: var(--surface2); }
+  .view-dd-opt.sel { color: var(--accent); }
+  .view-dd-opt.sel::after { content: '✓'; }
+  .view-dd-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+  .view-mode-btn { flex: 1; padding: 5px 0; font-size: 11px; font-weight: 600; font-family: var(--mono); letter-spacing: 0.3px; color: var(--text-dim); background: var(--surface2); border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .view-mode-btn:hover { color: var(--text); }
+  .view-mode-btn.active { color: var(--accent); border-color: var(--accent); background: var(--bg); }
+  .view-mode-btn.sort-arrow { flex: 0 0 auto; min-width: 36px; font-size: 14px; padding: 5px 9px; }
+
+  /* Customer management modal */
+  .customer-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 6px; gap: 10px; background: var(--bg); }
+  .customer-item-name { flex: 1; font-size: 13px; }
+
+  /* Customer select */
+  .form-input option { background: var(--surface2); color: var(--text); }
+</style>
+</head>
+<body>
+<div id="loginOverlay" style="display:none; position:fixed; inset:0; z-index:3000; background:var(--bg); align-items:center; justify-content:center;">
+  <div style="width:340px; max-width:90%; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:30px 26px;">
+    <div style="font-family:var(--mono); font-size:15px; letter-spacing:1px; color:var(--accent); text-align:center; margin-bottom:6px;">ACE LOGISTICS</div>
+    <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:22px;">로그인 / Sign in</div>
+    <div class="form-group"><label class="form-label">이메일 (Email)</label><input class="form-input" id="loginEmail" type="email" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="form-group"><label class="form-label">비밀번호 (Password)</label><input class="form-input" id="loginPw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div id="loginErr" style="color:var(--warn); font-size:12px; min-height:16px; margin:2px 0 10px;"></div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center;" id="loginBtn" onclick="doLogin()">로그인</button>
+  </div>
+</div>
+<div class="app">
+  <header>
+    <svg class="brand-logo" role="img" aria-label="ACE Engineering" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" version="1.1" viewBox="0 0 240.307 84.0388">
+<defs>
+<clipPath id="clip_1">
+<path transform="matrix(1,0,0,-1,0,84.0388)" d="M0 84.039H240.307V0H0Z"/>
+</clipPath>
+</defs>
+<g inkscape:groupmode="layer" inkscape:label="&#xB808;&#xC774;&#xC5B4; 1">
+<path transform="matrix(1,0,0,-1,39.5158,43.848905)" d="M0 0H3.885L1.995 5.501H1.953ZM.315 9.196H3.695L9.302-5.795H5.879L4.746-2.456H-.86L-2.036-5.795H-5.375Z" fill="currentColor"/>
+<g clip-path="url(#clip_1)">
+<path transform="matrix(1,0,0,-1,60.3264,39.691705)" d="M0 0C-.211 1.49-1.639 2.625-3.275 2.625-6.236 2.625-7.35 .105-7.35-2.52-7.35-5.018-6.236-7.537-3.275-7.537-1.26-7.537-.127-6.152 .125-4.178H3.316C2.98-7.916 .398-10.309-3.275-10.309-7.916-10.309-10.646-6.845-10.646-2.52-10.646 1.932-7.916 5.396-3.275 5.396 .021 5.396 2.792 3.465 3.191 0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,66.1017,34.652605)" d="M0 0H11.213V-2.771H3.297V-5.984H10.562V-8.545H3.297V-12.22H11.381V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,85.967,34.652605)" d="M0 0H11.213V-2.771H3.297V-5.984H10.562V-8.545H3.297V-12.22H11.381V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,99.7853,34.652605)" d="M0 0H3.275L9.531-10.057H9.574V0H12.66V-14.991H9.363L3.128-4.955H3.086V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,126.3889,47.943605)" d="M0 0C-1.154-1.49-2.666-2.057-4.115-2.057-8.755-2.057-11.484 1.407-11.484 5.732-11.484 10.184-8.755 13.648-4.115 13.648-1.049 13.648 1.848 11.758 2.205 8.357H-.944C-1.322 10.016-2.561 10.877-4.115 10.877-7.075 10.877-8.188 8.357-8.188 5.732-8.188 3.234-7.075 .715-4.115 .715-1.973 .715-.734 1.869-.545 3.947H-3.863V6.404H2.436V-1.7H.336Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,0,84.0388)" d="M131.703 49.386H135V34.395H131.703Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,138.1096,34.652605)" d="M0 0H3.275L9.531-10.057H9.574V0H12.66V-14.991H9.363L3.128-4.955H3.086V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,153.8791,34.652605)" d="M0 0H11.213V-2.771H3.297V-5.984H10.562V-8.545H3.297V-12.22H11.381V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,167.6974,34.652605)" d="M0 0H11.211V-2.771H3.296V-5.984H10.561V-8.545H3.296V-12.22H11.379V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,184.8107,41.433904)" d="M0 0H3.611C5.081 0 5.879 .629 5.879 2.141 5.879 3.59 5.081 4.22 3.611 4.22H0ZM-3.297 6.781H4.787C7.475 6.781 9.176 4.912 9.176 2.645 9.176 .881 8.461-.441 6.803-1.113V-1.155C8.42-1.575 8.881-3.15 8.986-4.662 9.049-5.606 9.028-7.37 9.616-8.21H6.32C5.921-7.266 5.963-5.816 5.795-4.619 5.564-3.045 4.955-2.352 3.297-2.352H0V-8.21H-3.297Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,0,84.0388)" d="M196.887 49.386H200.183V34.395H196.887Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,203.2932,34.652605)" d="M0 0H3.275L9.531-10.057H9.574V0H12.66V-14.991H9.363L3.128-4.955H3.086V-14.991H0Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,229.8967,47.943605)" d="M0 0C-1.154-1.49-2.666-2.057-4.115-2.057-8.755-2.057-11.484 1.407-11.484 5.732-11.484 10.184-8.755 13.648-4.115 13.648-1.049 13.648 1.848 11.758 2.205 8.357H-.944C-1.322 10.016-2.561 10.877-4.115 10.877-7.075 10.877-8.188 8.357-8.188 5.732-8.188 3.234-7.075 .715-4.115 .715-1.973 .715-.734 1.869-.545 3.947H-3.863V6.404H2.436V-1.7H.336Z" fill="currentColor"/>
+<path transform="matrix(1,0,0,-1,25.28,39.3226)" d="M0 0H-14.156C-12.315 2.728-9.948 4.927-7.078 4.927-4.208 4.927-1.838 2.728 0 0" fill="#da2f26"/>
+<path transform="matrix(1,0,0,-1,27.925,44.262006)" d="M0 0H-19.447C-19.38 .149-19.317 .298-19.247 .449-18.836 1.37-18.364 2.329-17.833 3.266L-17.637 3.588H-1.81L-1.614 3.266C-1.082 2.329-.61 1.37-.199 .449-.13 .298-.066 .149 0 0" fill="#009459"/>
+<path transform="matrix(1,0,0,-1,29.8581,49.643804)" d="M0 0H-5.097C-5.537 .576-6.233 .949-7.015 .949H-16.301C-16.969 .949-17.573 .677-18.01 .24-18.086 .164-18.155 .085-18.219 0H-23.316C-23.316 0-22.883 1.61-22.041 3.778L-21.937 4.034H-1.376L-1.272 3.778C-.43 1.61 0 0 0 0" fill="#3b3635"/>
+</g>
+</g>
+</svg>
+
+    <div class="header-right">
+      <div class="save-status">
+        <div class="save-dot" id="syncDot"></div>
+        <span id="syncText">불러오는 중...</span>
+      </div>
+      <button class="btn-lang" id="langToggle" onclick="toggleLang()">EN</button>
+      <button class="btn-icon" onclick="importForCurrentTab()" title="Excel 가져오기" data-i18n-title="header.importExcel"><svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle"><path d="M8 1v8m0 0L5 6m3 3l3-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5a1 1 0 001 1h10a1 1 0 001-1V11" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="btn-icon" onclick="openSettingsModal()" title="API Key Settings">⚙️</button>
+      <button class="btn btn-primary" onclick="openNewModal()" data-i18n="header.new">+ 신규 화물</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title" data-i18n="sidebar.title">화물 목록</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="shipmentCount" class="status-badge badge-inprogress">0건</span>
+          <button class="btn-icon" style="padding:3px 8px;font-size:12px" onclick="exportShareData()" title="공유용 데이터 내보내기 (JSON)" data-i18n-title="sidebar.exportShare">📤</button>
+          <button class="btn-icon" style="padding:3px 8px;font-size:12px" onclick="openCustomerModal()" title="고객 관리">👥</button>
+        </div>
+      </div>
+      <div class="main-tabs" id="mainTabs"></div>
+      <div class="sidebar-search">
+        <input type="text" id="sidebarSearch" class="form-input" placeholder="Booking No 또는 PJT 검색..." data-i18n-ph="sidebar.searchPh" oninput="onSidebarSearch(this.value)">
+      </div>
+      <div class="shipment-list" id="shipmentList"></div>
+    </aside>
+
+    <main class="content" id="content">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📦</div>
+        <div style="font-size:14px;color:var(--text-dim);" data-i18n="empty.msg">화물을 선택하거나 신규 화물을 추가하세요</div>
+        <div class="empty-hint" data-i18n="empty.hint">Ctrl+N · 신규 화물 등록</div>
+      </div>
+      <div id="detail" class="hidden"></div>
+      <div id="overviewDashboard" class="hidden"></div>
+    </main>
+  </div>
+</div>
+
+<!-- ── New / Edit Modal ─────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="newModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">신규 화물 등록</div>
+
+    <!-- PDF Drop Zone -->
+    <div class="pdf-drop" id="pdfDrop"
+      ondragover="event.preventDefault();this.classList.add('dragover')"
+      ondragleave="this.classList.remove('dragover')"
+      ondrop="onDrop(event)">
+      <input type="file" accept=".pdf" onchange="onFileSelect(this.files[0])">
+      <div class="pdf-drop-icon">📄</div>
+      <div class="pdf-drop-title" data-i18n="pdf.drop.title">부킹 확인서 PDF를 여기에 드래그하세요</div>
+      <div class="pdf-drop-sub" data-i18n="pdf.drop.sub">AI가 선박명, ETD/ETA, 부킹번호 등을 자동으로 채워드립니다</div>
+    </div>
+    <div id="parseStatus" class="hidden"></div>
+
+    <div class="divider" data-i18n="pdf.or">또는 직접 입력</div>
+
+    <div class="form-group">
+      <label class="form-label" data-i18n="form.direction">처리 구분 *</label>
+      <div class="direction-toggle">
+        <label class="direction-radio"><input type="radio" name="f-direction" value="outbound" onchange="updateCutoffSectionVisibility()"> <span data-i18n="direction.outbound">수출</span></label>
+        <label class="direction-radio"><input type="radio" name="f-direction" value="inbound" onchange="updateCutoffSectionVisibility()"> <span data-i18n="direction.inbound">수입</span></label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" data-i18n="form.customer">고객 *</label>
+      <select class="form-input" id="f-customer">
+        <option value="" data-i18n-opt="ph.customer">고객 선택...</option>
+      </select>
+    </div>
+
+    <div id="inboundSection" style="display:none;">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.itemType">아이템 타입</label>
+          <select class="form-input" id="f-itemtype">
+            <option value=""></option>
+            <option value="Gen6">Gen6</option>
+            <option value="GSP2000">GSP2000</option>
+            <option value="GSP5000">GSP5000</option>
+            <option value="SSTK">SSTK</option>
+            <option value="M10">M10</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.pjtName">프로젝트 (PJT)</label>
+          <input class="form-input" id="f-pjtname" data-i18n-ph="ph.pjtName" placeholder="예: Theia Variant 1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.itemQty">아이템 수량 (ITEM QTY)</label>
+          <input class="form-input" id="f-itemqty" type="number" min="0" placeholder="예: 55">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.pltQty">PLT QTY</label>
+          <input class="form-input" id="f-pltqty" type="number" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.invoiceNo">Invoice No.</label>
+        <input class="form-input" id="f-invoiceno" placeholder="예: 13419">
+      </div>
+      <div class="form-group" style="margin-top:2px;">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="f-via3pw" onchange="toggleVia3pwFields()" style="width:auto;margin:0;flex:none;">
+          <span data-i18n="form.via3pw">🏬 3rd party 창고 경유 (공장 만실 시에만)</span>
+        </label>
+      </div>
+      <div id="via3pwFields" style="display:none;">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.warehouse3pwName">3PW 명 / 위치</label>
+          <select class="form-input" id="f-warehouse3pwsel" onchange="toggleWarehouseOther()">
+            <option value=""></option>
+            <option value="HTNS W/H">HTNS W/H</option>
+            <option value="K&amp;N W/H">K&amp;N W/H</option>
+            <option value="기타" data-i18n="opt.warehouseOther">기타</option>
+          </select>
+          <input class="form-input" id="f-warehouse3pwname" data-i18n-ph="ph.warehouse3pwName" placeholder="예: Hai Phong Bonded W/H" style="display:none;margin-top:6px;">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" data-i18n="form.warehouse3pwIn">3PW 입고일</label>
+            <input class="form-input" id="f-warehouse3pwin" type="date" onclick="openPicker(this)">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="form.warehouse3pwOut">창고 출고일</label>
+            <input class="form-input" id="f-warehouse3pwout" type="date" onclick="openPicker(this)">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.name">화물명 *</label>
+        <input class="form-input" id="f-name" data-i18n-ph="ph.name" placeholder="예: GSP POD Unit #3" onkeydown="if(event.key==='Enter')saveShipment()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.ref">레퍼런스 / 부킹번호</label>
+        <input class="form-input" id="f-ref" data-i18n-ph="ph.ref" placeholder="예: BKNG123456">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.pol">출발지 (POL)</label>
+        <input class="form-input" id="f-pol" data-i18n-ph="ph.pol" placeholder="예: Busan">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.pod">목적지 (POD)</label>
+        <input class="form-input" id="f-pod" data-i18n-ph="ph.pod" placeholder="예: Rotterdam">
+        <span class="form-hint" data-i18n="form.pod.hint">호주 항구/도착지 입력 시 '원산지 증명서' 단계가 자동 추가됩니다</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.weight">화물 중량 (kg)</label>
+        <input class="form-input" id="f-weight" data-i18n-ph="ph.weight" placeholder="예: 14890" type="number">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="form.forwarder">포워더</label>
+        <input class="form-input" id="f-forwarder" data-i18n-ph="ph.forwarder" placeholder="예: FLN Logistics">
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+      <span class="modal-section-label" data-i18n="form.vessel.section">선박 정보</span>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.carrier">선사</label>
+          <input class="form-input" id="f-carrier" data-i18n-ph="ph.carrier" placeholder="예: MSC, Maersk">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.vessel">선박명</label>
+          <input class="form-input" id="f-vessel" data-i18n-ph="ph.vessel" placeholder="예: MSC AURORA">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.voyage">항차 (Voyage)</label>
+          <input class="form-input" id="f-voyage" data-i18n-ph="ph.voyage" placeholder="예: V.042E">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.container">컨테이너 번호</label>
+          <input class="form-input" id="f-ctnr" data-i18n-ph="ph.container" placeholder="예: MSCU1234567">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.etd">ETD (출항일)</label>
+          <input class="form-input" id="f-etd" type="date" onclick="openPicker(this)">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.eta">ETA (도착일)</label>
+          <input class="form-input" id="f-eta" type="date" onclick="openPicker(this)">
+        </div>
+      </div>
+    </div>
+
+    <div id="cutoffSection" style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+      <span class="modal-section-label" data-i18n="form.cutoff.section">선적 일정 (Cut-off Schedule)</span>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.ctnrQty">컨테이너 수량 (CT QTY)</label>
+          <input class="form-input" id="f-ctnrqty" type="number" min="0" data-i18n-ph="ph.ctnrQty" placeholder="예: 2">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.docCutoff">Document Cut-off</label>
+          <input class="form-input" id="f-doccutoff" type="date" onclick="openPicker(this)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.cargoCutoff">Cargo Cut-off</label>
+          <input class="form-input" id="f-cargocutoff" type="date" onclick="openPicker(this)">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="form.gateIn">Early Gate-in Date</label>
+          <input class="form-input" id="f-gatein" type="date" onclick="openPicker(this)">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()" data-i18n="modal.cancel">취소</button>
+      <button class="btn btn-primary" id="modalSubmitBtn" onclick="saveShipment()">등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings Modal (API Key) ────────────────────────────────── -->
+<div class="modal-overlay hidden" id="settingsModal" onclick="if(event.target===this)closeSettingsModal()">
+  <div class="modal settings-modal">
+    <div class="modal-title" data-i18n="settings.title">설정</div>
+
+    <div class="settings-section-label" data-i18n="settings.general">일반 설정</div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="settings.theme">테마</label>
+      <div class="theme-toggle">
+        <button class="theme-opt" data-theme="dark" onclick="setTheme('dark')" data-i18n="settings.theme.dark">🌙 다크</button>
+        <button class="theme-opt" data-theme="light" onclick="setTheme('light')" data-i18n="settings.theme.light">☀️ 라이트(흰색)</button>
+      </div>
+    </div>
+    <div class="form-group" id="logoutRow" style="display:none;">
+      <label class="form-label" data-i18n="settings.account">계정 (Account)</label>
+      <button class="btn btn-ghost" style="width:100%; justify-content:center; margin-bottom:6px;" onclick="cloudMigrateUp()" data-i18n="settings.uploadBtn">⬆ 이 브라우저 데이터 클라우드로 올리기</button>
+      <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="doLogout()" data-i18n="settings.logout">🚪 로그아웃</button>
+    </div>
+
+    <div class="settings-section-label" data-i18n="settings.apiSection" style="margin-top:16px;">API 키 (PDF 자동 파싱)</div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="settings.label">API 키</label>
+      <div class="api-key-wrap">
+        <input class="form-input" id="apiKeyInput" type="password"
+          data-i18n-ph="settings.ph" placeholder="AIza... (Gemini 무료) 또는 sk-ant-..."
+          onkeydown="if(event.key==='Enter')submitApiKey()">
+        <button class="toggle-key-btn" onclick="
+          const i=document.getElementById('apiKeyInput');
+          i.type=i.type==='password'?'text':'password';
+          this.textContent=i.type==='password'?'보기':'숨기기'
+        ">보기</button>
+      </div>
+      <div class="settings-sub" data-i18n="settings.sub" style="white-space:pre-line">🆓 Google Gemini 무료: aistudio.google.com → Get API Key
+💳 Anthropic 유료: console.anthropic.com → API Keys</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeSettingsModal()" data-i18n="settings.cancel">취소</button>
+      <button class="btn btn-primary" onclick="submitApiKey()" data-i18n="settings.save">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Customer Management Modal ───────────────────────────────── -->
+<div class="modal-overlay hidden" id="customerModal" onclick="if(event.target===this)closeCustomerModal()">
+  <div class="modal" style="width:400px">
+    <div class="modal-title" data-i18n="customer.title">고객 관리</div>
+    <div id="customerListItems" style="min-height:50px"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <input class="form-input" id="newCustomerInput"
+        data-i18n-ph="customer.ph" placeholder="새 고객명 입력..."
+        onkeydown="if(event.key==='Enter')addCustomer()" style="flex:1">
+      <button class="btn btn-primary" onclick="addCustomer()" data-i18n="customer.add">+ 추가</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCustomerModal()" data-i18n="customer.close">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Translations ──────────────────────────────────────────────────
+const TR = {
+  ko: {
+    'header.new': '+ 신규 화물',
+    'header.settings': '⚙️',
+    'header.importExcel': 'Excel 가져오기',
+    'header.exportExcel': 'Excel 내보내기',
+    'header.status.loading': '불러오는 중...',
+    'header.status.ok': '저장됨',
+    'header.status.saving': '저장 중...',
+    'header.status.err': '저장 실패',
+    'sidebar.title': '화물 목록',
+    'sidebar.empty': '등록된 화물이 없습니다',
+    'sidebar.count': '건',
+    'sidebar.searchPh': 'Booking No 또는 PJT 검색...',
+    'sidebar.noResults': '검색 결과가 없습니다',
+    'sidebar.exportShare': '공유용 데이터 내보내기 (JSON)',
+    'sidebar.selectCustomer': '고객을 선택하세요',
+    'sidebar.back': '← 전체 고객',
+    'view.itemEtc': '기타',
+    'view.project': '프로젝트별',
+    'view.latest': '최신순',
+    'view.item': '아이템별',
+    'tab.all': '종합', 'tab.inbound': '수입', 'tab.outbound': '수출',
+    'sidebar.emptyDir': '이 구분에 화물이 없습니다',
+    'ov.total': '전체', 'ov.inprogress': '진행중', 'ov.done': '완료', 'ov.pending': '대기',
+    'ov.allLatest': '전체 화물 · 최신순',
+    'ov.dashTitle': 'Logistics Trend',
+    'ov.noDate': '날짜 정보가 있는 화물이 없습니다',
+    'ov.allYears': '전체 연도', 'ov.noYearData': '{year}년 화물이 없습니다',
+    'ov.projProgress': '프로젝트 진행 현황', 'ov.noActiveProj': '진행중인 프로젝트가 없습니다',
+    'inb.title': '인바운드 리스트', 'inb.fromPdf': 'PDF에서 추출', 'inb.clear': '전체 비우기',
+    'inb.empty': 'PDF(CI/PL)를 업로드하면 자동으로 추출됩니다. Remark = FPN / MPN',
+    'inb.analyzing': 'PDF {n}개 분석 중...', 'inb.done': '추출 완료: {added}건 추가 (실패 {errs})',
+    'inb.desc': '품명', 'inb.shipline': '포워더', 'inb.clearConfirm': '이 고객의 인바운드 리스트를 비울까요?',
+    'inb.importExcel': 'Excel 가져오기', 'inb.imported': '{n}건 가져왔습니다',
+    'gran.week': '주별', 'gran.month': '월별', 'gran.year': '연도별',
+    'sel.all': '전체 선택', 'sel.none': '전체 해제', 'sel.count': '개 선택', 'sel.delete': '선택 삭제', 'sel.complete': '완료 처리',
+    'confirm.deleteSelected': '선택한 {n}건을 삭제할까요?',
+    'confirm.completeSelected': '선택한 {n}건을 완료 처리할까요?',
+    'badge.done': '완료',
+    'badge.inprogress': '진행중',
+    'badge.pending': '대기',
+    'empty.msg': '화물을 선택하거나 신규 화물을 추가하세요',
+    'empty.hint': 'Ctrl+N · 신규 화물 등록',
+    'detail.row.shipline': 'Shipping Line', 'detail.row.booking': 'Booking #',
+    'detail.row.project': 'Project', 'detail.row.client': 'Client',
+    'detail.row.pol': 'POL', 'detail.row.pod': 'POD',
+    'detail.row.direction': '구분', 'detail.row.forwarder': 'Forwarder',
+    'detail.row.ctnrQty': 'CT QTY',
+    'detail.row.weight': '중량', 'detail.row.container': 'Container',
+    'detail.vessel': '🚢 선박 일정',
+    'detail.etd': 'ETD', 'detail.eta': 'ETA',
+    'detail.vessel.name': '선박명', 'detail.voyage': '항차',
+    'detail.carrier': '선사', 'detail.booking': '부킹번호',
+    'detail.transit': '예상 운항일', 'detail.transit.unit': '일',
+    'detail.ctnrQty': '컨테이너 수량', 'detail.docCutoff': 'Doc Cut-off',
+    'detail.cargoCutoff': 'Cargo Cut-off', 'detail.gateIn': 'Gate-in',
+    'detail.checklist': '📋 프로세스 체크리스트',
+    'detail.notes': '📝 메모',
+    'detail.notes.ph': '특이사항, 연락처, 기타 메모...',
+    'detail.edit': '✏️ 수정', 'detail.delete': '삭제',
+    'detail.weight.unit': 'kg',
+    'modal.new': '신규 화물 등록',
+    'modal.edit': '화물 정보 수정',
+    'modal.create.btn': '등록',
+    'modal.edit.btn': '수정 저장',
+    'modal.cancel': '취소',
+    'form.direction': '처리 구분 *',
+    'direction.outbound': '수출', 'direction.inbound': '수입',
+    'form.name': 'Project명 / 화물명 *', 'form.ref': '레퍼런스 / 부킹번호',
+    'form.pol': '출발지 (POL)', 'form.pod': '목적지 (POD)',
+    'form.pod.hint': "호주 항구/도착지 입력 시 '원산지 증명서' 단계가 자동 추가됩니다",
+    'form.weight': '화물 중량 (kg)', 'form.forwarder': '포워더',
+    'form.vessel.section': '선박 정보',
+    'form.carrier': '선사', 'form.vessel': '선박명',
+    'form.voyage': '항차 (Voyage)', 'form.container': '컨테이너 번호',
+    'form.etd': 'ETD (출항일)', 'form.eta': 'ETA (도착일)',
+    'form.cutoff.section': '선적 일정 (Cut-off Schedule)',
+    'form.inbound.section': '인바운드 (Free issued item)', 'form.itemType': '아이템 타입', 'form.itemQty': '아이템 수량 (ITEM QTY)',
+    'form.pjtName': '프로젝트 (PJT)', 'form.pltQty': 'PLT QTY', 'form.invoiceNo': 'Invoice No.', 'ph.pjtName': '예: Theia Variant 1',
+    'form.via3pw': '🏬 3rd party 창고 경유 (공장 만실 시에만)', 'form.warehouse3pwName': '3PW 명 / 위치',
+    'form.warehouse3pwIn': '3PW 입고일', 'form.warehouse3pwOut': '창고 출고일', 'ph.warehouse3pwName': '예: Hai Phong Bonded W/H',
+    'detail.holding3pw': '🏬 3PW 보관중', 'opt.warehouseOther': '기타',
+    'form.ctnrQty': '컨테이너 수량 (CT QTY)',
+    'form.docCutoff': 'Document Cut-off', 'form.cargoCutoff': 'Cargo Cut-off',
+    'form.gateIn': 'Early Gate-in Date',
+    'ph.name': '예: GSP POD Unit #3', 'ph.ref': '예: BKNG123456',
+    'ph.pol': '예: Busan', 'ph.pod': '예: Rotterdam',
+    'ph.weight': '예: 14890', 'ph.forwarder': '예: FLN Logistics',
+    'ph.carrier': '예: MSC, Maersk', 'ph.vessel': '예: MSC AURORA',
+    'ph.voyage': '예: V.042E', 'ph.container': '예: MSCU1234567',
+    'ph.ctnrQty': '예: 2',
+    'pdf.drop.title': '부킹 확인서 PDF를 여기에 드래그하세요',
+    'pdf.drop.sub': 'AI가 선박명, ETD/ETA, 부킹번호 등을 자동으로 채워드립니다',
+    'pdf.or': '또는 직접 입력',
+    'pdf.nokey': '⚠️ API 키 미설정 — ⚙️ 버튼을 눌러 설정하세요',
+    'pdf.analyzing': 'AI가 부킹 확인서를 분석 중입니다...',
+    'pdf.ok': '✅ 정보 추출 완료! 내용을 확인 후 수정하세요.',
+    'pdf.err': '⚠️ 자동 추출 실패. 직접 입력해주세요.',
+    'pdf.wrong': '⚠️ PDF 파일만 지원됩니다',
+    'pdf.toast': '✅ PDF에서 정보를 자동으로 채웠습니다',
+    'settings.title': '설정',
+    'settings.general': '일반 설정', 'settings.theme': '테마',
+    'settings.theme.dark': '🌙 다크', 'settings.theme.light': '☀️ 라이트(흰색)',
+    'settings.account': '계정 (Account)', 'settings.logout': '🚪 로그아웃', 'settings.uploadBtn': '⬆ 이 브라우저 데이터 클라우드로 올리기',
+    'settings.apiSection': 'API 키 (PDF 자동 파싱)',
+    'settings.label': 'API 키',
+    'settings.ph': 'AIza... (Gemini 무료) 또는 sk-ant-... (Anthropic)',
+    'settings.sub': '🆓 Google Gemini 무료: aistudio.google.com → Get API Key\n💳 Anthropic 유료: console.anthropic.com → API Keys',
+    'settings.save': '저장',
+    'settings.cancel': '취소',
+    'settings.saved': '✅ API 키가 저장되었습니다',
+    'toast.created': '✅ 화물이 등록되었습니다',
+    'toast.updated': '✅ 화물 정보가 수정되었습니다',
+    'toast.excelExported': '✅ Excel 파일을 내보냈습니다',
+    'toast.shareDataExported': '✅ 공유용 데이터 파일을 내보냈습니다',
+    'toast.excelNoData': '내보낼 화물이 없습니다',
+    'toast.importDone': '✅ {added}건 추가, {updated}건 갱신했습니다',
+    'toast.importNoData': '가져올 데이터가 없습니다',
+    'toast.importErr': '❌ Excel 가져오기 실패',
+    'excel.lib.err': '⚠️ Excel 라이브러리를 불러오지 못했습니다 (인터넷 연결을 확인하세요)',
+    'confirm.delete': '이 화물을 삭제하시겠습니까?',
+    'alert.name': '화물명을 입력해주세요.',
+    'alert.customer': '고객을 선택해주세요.',
+    'confirm.customer.delete': '이 고객을 삭제하시겠습니까?\n(기존 화물의 고객 정보는 유지됩니다)',
+    'customer.title': '고객 관리',
+    'customer.add': '+ 추가',
+    'customer.close': '닫기',
+    'customer.ph': '새 고객명 입력...',
+    'customer.empty': '등록된 고객이 없습니다',
+    'customer.dup': '이미 등록된 고객입니다',
+    'form.customer': '고객 *',
+    'ph.customer': '고객 선택...',
+    'step.booking': '선박부킹 완료',
+    'step.customs_export': '수출통관 완료',
+    'step.cipl': 'CIPL 작성 및 송부 완료',
+    'step.cargo_loaded': '화물출고 완료(CY반입)',
+    'step.pl_accounting': '회계팀에 Packing List 송부',
+    'step.coo': '원산지 증명서 발급 완료',
+    'step.cipl_hwb_received': 'CIPL 및 HWB 수령',
+    'step.cipl_reviewed': 'CIPL 검토 완료',
+    'step.import_customs': '수입 통관 완료',
+    'step.port_arrival': 'Hai Phong Port 내 화물 도착',
+    'step.warehouse3pw_in': '3rd party 창고 입고 (임시 보관)',
+    'step.warehouse3pw_out': '공장 공간 확보 · 창고 출고',
+    'step.trucking_booked': 'Inland Trucking 차량 부킹 완료',
+    'step.factory_received': '공장 입고 완료',
+  },
+  en: {
+    'header.new': '+ New Shipment',
+    'header.settings': '⚙️',
+    'header.importExcel': 'Import Excel',
+    'header.exportExcel': 'Export Excel',
+    'header.status.loading': 'Loading...',
+    'header.status.ok': 'Saved',
+    'header.status.saving': 'Saving...',
+    'header.status.err': 'Save failed',
+    'sidebar.title': 'Shipments',
+    'sidebar.empty': 'No shipments registered',
+    'sidebar.count': ' items',
+    'sidebar.searchPh': 'Search Booking No or Project...',
+    'sidebar.noResults': 'No results found',
+    'sidebar.exportShare': 'Export share data (JSON)',
+    'sidebar.selectCustomer': 'Select a customer',
+    'sidebar.back': '← All Customers',
+    'view.itemEtc': 'Others',
+    'view.project': 'By Project',
+    'view.latest': 'Latest',
+    'view.item': 'By Item',
+    'tab.all': 'Overview', 'tab.inbound': 'Inbound', 'tab.outbound': 'Outbound',
+    'sidebar.emptyDir': 'No shipments in this category',
+    'ov.total': 'Total', 'ov.inprogress': 'In Progress', 'ov.done': 'Done', 'ov.pending': 'Pending',
+    'ov.allLatest': 'All shipments · latest first',
+    'ov.dashTitle': 'Logistics Trend',
+    'ov.noDate': 'No shipments with date info',
+    'ov.allYears': 'All Years', 'ov.noYearData': 'No shipments in {year}',
+    'ov.projProgress': 'Project Progress', 'ov.noActiveProj': 'No projects in progress',
+    'inb.title': 'Inbound List', 'inb.fromPdf': 'Extract from PDF', 'inb.clear': 'Clear all',
+    'inb.empty': 'Upload PDFs (CI/PL) to auto-extract. Remark = FPN / MPN',
+    'inb.analyzing': 'Analyzing {n} PDF(s)...', 'inb.done': 'Done: {added} added ({errs} failed)',
+    'inb.desc': 'Description', 'inb.shipline': 'Forwarder', 'inb.clearConfirm': "Clear this customer's inbound list?",
+    'inb.importExcel': 'Import Excel', 'inb.imported': 'Imported {n} rows',
+    'gran.week': 'Weekly', 'gran.month': 'Monthly', 'gran.year': 'Yearly',
+    'sel.all': 'Select all', 'sel.none': 'Clear', 'sel.count': ' selected', 'sel.delete': 'Delete', 'sel.complete': 'Mark done',
+    'confirm.deleteSelected': 'Delete {n} selected shipment(s)?',
+    'confirm.completeSelected': 'Mark {n} selected as complete?',
+    'badge.done': 'Done',
+    'badge.inprogress': 'In Progress',
+    'badge.pending': 'Pending',
+    'empty.msg': 'Select a shipment or add a new one',
+    'empty.hint': 'Ctrl+N · New Shipment',
+    'detail.row.shipline': 'Shipping Line', 'detail.row.booking': 'Booking #',
+    'detail.row.project': 'Project', 'detail.row.client': 'Client',
+    'detail.row.pol': 'POL', 'detail.row.pod': 'POD',
+    'detail.row.direction': 'Direction', 'detail.row.forwarder': 'Forwarder',
+    'detail.row.weight': 'Weight', 'detail.row.container': 'Container',
+    'detail.podEmpty': 'Auto-filled when booking is added',
+    'detail.vessel': '🚢 Vessel Schedule',
+    'detail.etd': 'ETD', 'detail.eta': 'ETA',
+    'detail.vessel.name': 'Vessel', 'detail.voyage': 'Voyage',
+    'detail.carrier': 'Carrier', 'detail.booking': 'Booking No.',
+    'detail.transit': 'Transit', 'detail.transit.unit': ' days',
+    'detail.checklist': '📋 Process Checklist',
+    'detail.notes': '📝 Notes',
+    'detail.notes.ph': 'Special notes, contacts, remarks...',
+    'detail.edit': '✏️ Edit', 'detail.delete': 'Delete',
+    'detail.weight.unit': 'kg',
+    'modal.new': 'New Shipment',
+    'modal.edit': 'Edit Shipment',
+    'modal.create.btn': 'Register',
+    'modal.edit.btn': 'Save Changes',
+    'modal.cancel': 'Cancel',
+    'form.direction': 'Direction *',
+    'direction.outbound': 'Outbound', 'direction.inbound': 'Inbound',
+    'form.name': 'Project / Cargo Name *', 'form.ref': 'Reference / Booking No.',
+    'form.pol': 'Port of Loading (POL)', 'form.pod': 'Port of Discharge (POD)',
+    'form.pod.hint': "Entering an Australian port/destination auto-adds the 'Certificate of Origin' step",
+    'form.weight': 'Cargo Weight (kg)', 'form.forwarder': 'Forwarder',
+    'form.vessel.section': 'Vessel Information',
+    'form.carrier': 'Carrier', 'form.vessel': 'Vessel Name',
+    'form.voyage': 'Voyage', 'form.container': 'Container No.',
+    'form.etd': 'ETD (Departure)', 'form.eta': 'ETA (Arrival)',
+    'form.inbound.section': 'Inbound (Free issued item)', 'form.itemType': 'Item Type', 'form.itemQty': 'Item Qty (ITEM QTY)',
+    'form.pjtName': 'Project (PJT)', 'form.pltQty': 'PLT Qty', 'form.invoiceNo': 'Invoice No.', 'ph.pjtName': 'e.g. Theia Variant 1',
+    'form.via3pw': '🏬 Via 3rd-party warehouse (only when factory full)', 'form.warehouse3pwName': '3PW Name / Location',
+    'form.warehouse3pwIn': '3PW Arrival Date', 'form.warehouse3pwOut': 'Released to Factory Date', 'ph.warehouse3pwName': 'e.g. Hai Phong Bonded W/H',
+    'detail.holding3pw': '🏬 In 3PW storage', 'opt.warehouseOther': 'Other',
+    'form.cutoff.section': 'Shipping Schedule (Cut-off)', 'form.ctnrQty': 'Container Qty (CT QTY)',
+    'form.docCutoff': 'Document Cut-off', 'form.cargoCutoff': 'Cargo Cut-off', 'form.gateIn': 'Early Gate-in Date', 'ph.ctnrQty': 'e.g. 2',
+    'ph.name': 'e.g. GSP POD Unit #3', 'ph.ref': 'e.g. BKNG123456',
+    'ph.pol': 'e.g. Busan', 'ph.pod': 'e.g. Rotterdam',
+    'ph.weight': 'e.g. 14890', 'ph.forwarder': 'e.g. FLN Logistics',
+    'ph.carrier': 'e.g. MSC, Maersk', 'ph.vessel': 'e.g. MSC AURORA',
+    'ph.voyage': 'e.g. V.042E', 'ph.container': 'e.g. MSCU1234567',
+    'pdf.drop.title': 'Drag Booking Confirmation PDF here',
+    'pdf.drop.sub': 'AI will auto-fill vessel, ETD/ETA, booking number, etc.',
+    'pdf.or': 'or enter manually',
+    'pdf.nokey': '⚠️ API key not set — click ⚙️ to configure',
+    'pdf.analyzing': 'AI is analyzing the booking confirmation...',
+    'pdf.ok': '✅ Extraction complete! Please review and edit if needed.',
+    'pdf.err': '⚠️ Auto-extraction failed. Please enter manually.',
+    'pdf.wrong': '⚠️ Only PDF files are supported',
+    'pdf.toast': '✅ Form auto-filled from PDF',
+    'settings.title': 'Settings',
+    'settings.general': 'General', 'settings.theme': 'Theme',
+    'settings.theme.dark': '🌙 Dark', 'settings.theme.light': '☀️ Light',
+    'settings.account': 'Account', 'settings.logout': '🚪 Log out', 'settings.uploadBtn': "⬆ Upload this browser's data to cloud",
+    'settings.apiSection': 'API Key (PDF Auto-fill)',
+    'settings.label': 'API Key',
+    'settings.ph': 'AIza... (Gemini Free) or sk-ant-... (Anthropic)',
+    'settings.sub': '🆓 Google Gemini Free: aistudio.google.com → Get API Key\n💳 Anthropic Paid: console.anthropic.com → API Keys',
+    'settings.save': 'Save',
+    'settings.cancel': 'Cancel',
+    'settings.saved': '✅ API key saved',
+    'toast.created': '✅ Shipment registered',
+    'toast.updated': '✅ Shipment updated',
+    'toast.excelExported': '✅ Excel file exported',
+    'toast.shareDataExported': '✅ Share data file exported',
+    'toast.excelNoData': 'No shipments to export',
+    'toast.importDone': '✅ Added {added}, updated {updated}',
+    'toast.importNoData': 'No data found to import',
+    'toast.importErr': '❌ Excel import failed',
+    'excel.lib.err': '⚠️ Failed to load Excel library (check internet connection)',
+    'confirm.delete': 'Delete this shipment?',
+    'alert.name': 'Please enter a cargo name.',
+    'alert.customer': 'Please select a customer.',
+    'confirm.customer.delete': 'Delete this customer?\n(Existing shipment data will be retained)',
+    'customer.title': 'Customer Management',
+    'customer.add': '+ Add',
+    'customer.close': 'Close',
+    'customer.ph': 'Enter new customer name...',
+    'customer.empty': 'No customers registered',
+    'customer.dup': 'Customer already exists',
+    'form.customer': 'Customer *',
+    'ph.customer': 'Select customer...',
+    'step.booking': 'Booking Confirmed',
+    'step.customs_export': 'Export Customs Cleared',
+    'step.cipl': 'CIPL Created & Sent',
+    'step.cargo_loaded': 'Cargo Shipped Out (CY Received)',
+    'step.pl_accounting': 'Packing List Sent to Accounting',
+    'step.coo': 'Certificate of Origin Issued',
+    'step.cipl_hwb_received': 'CIPL & HWB Received',
+    'step.cipl_reviewed': 'CIPL Reviewed',
+    'step.import_customs': 'Import Customs Cleared',
+    'step.port_arrival': 'Arrived at Hai Phong Port',
+    'step.warehouse3pw_in': 'Stored at 3rd-party warehouse',
+    'step.warehouse3pw_out': 'Released from warehouse (factory ready)',
+    'step.trucking_booked': 'Inland Trucking Booked',
+    'step.factory_received': 'Received at Factory',
+  },
+};
+
+const STEP_IDS = ['booking','customs_export','cargo_loaded','cipl','pl_accounting'];
+// Inbound checklist (수입 전용).
+const INBOUND_STEP_IDS = ['cipl_hwb_received','cipl_reviewed','import_customs','port_arrival','trucking_booked','factory_received'];
+
+// Australia-bound shipments get an extra "Certificate of Origin" step. A
+// shipment is treated as Australia-bound when its destination (POD) names
+// Australia or a major Australian port — set manually or auto-filled when a
+// booking PDF is parsed.
+const AU_DEST_RE = /\b(australia|sydney|melbourne|brisbane|fremantle|adelaide|perth|newcastle|port\s*kembla|botany|darwin|townsville|gladstone|geelong|kwinana|bunbury|devonport|burnie|bell\s*bay|mackay|cairns|dampier|port\s*hedland)\b/i;
+function isAustraliaDest(s) {
+  const pod = String(s.pod || '');
+  return pod.includes('호주') || AU_DEST_RE.test(pod);
+}
+function stepIdsFor(s) {
+  if ((s.direction || 'outbound') === 'inbound') {
+    // Cargo that detours through a 3rd-party warehouse (factory was full at port
+    // arrival) gets two extra steps inserted after port arrival. Off by default —
+    // the common direct-to-factory flow keeps the original 6 steps.
+    if (s.via3pw) {
+      const steps = [...INBOUND_STEP_IDS];
+      steps.splice(steps.indexOf('port_arrival') + 1, 0, 'warehouse3pw_in', 'warehouse3pw_out');
+      return steps;
+    }
+    return INBOUND_STEP_IDS;
+  }
+  return isAustraliaDest(s) ? [...STEP_IDS, 'coo'] : STEP_IDS;
+}
+// True while cargo is sitting in the 3rd-party warehouse: it has arrived at the
+// 3PW but is not yet received at the factory. (checks[id] is {done, date}.)
+function is3pwHolding(s) {
+  const done = id => !!(s.checks && s.checks[id] && s.checks[id].done);
+  return !!(s.via3pw && done('warehouse3pw_in') && !done('factory_received'));
+}
+
+let currentLang = localStorage.getItem('freight_lang') || 'ko';
+// Theme (dark default / light). Applied via a class on <html> that overrides the
+// CSS color variables; an inline <head> script applies it pre-paint to avoid flash.
+let currentTheme = localStorage.getItem('freight_theme') || 'dark';
+function applyTheme() { document.documentElement.classList.toggle('theme-light', currentTheme === 'light'); }
+function setTheme(theme) { currentTheme = theme; try { localStorage.setItem('freight_theme', theme); } catch {} applyTheme(); }
+applyTheme();
+function t(key) { return TR[currentLang][key] ?? key; }
+function getStepsFor(s) { return stepIdsFor(s).map(id => ({ id, label: t('step.' + id) })); }
+
+function toggleLang() {
+  currentLang = currentLang === 'ko' ? 'en' : 'ko';
+  localStorage.setItem('freight_lang', currentLang);
+  applyLang();
+}
+
+function applyLang() {
+  const btn = document.getElementById('langToggle');
+  if (btn) btn.textContent = currentLang === 'ko' ? 'EN' : '한';
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+
+  // Native <input type="date"> renders its placeholder/format from the element's
+  // lang (falling back to the browser locale), NOT the page text. Switch it with
+  // the UI language so EN shows "mm/dd/yyyy" instead of the Korean "연도. 월. 일.".
+  const dlang = currentLang === 'en' ? 'en' : 'ko';
+  document.documentElement.lang = dlang;
+  document.querySelectorAll('input[type="date"]').forEach(el => el.setAttribute('lang', dlang));
+
+  setSaveStatus(lastSaveState);
+  renderSidebar();
+  updateMainPanel();
+}
+
+// ── Storage (browser localStorage only) ────────────────────────────
+let shipments = [];
+let customers = [];
+let collapsedDirGroups = new Set();
+let collapsedProjects = new Set();
+let sidebarSearch = '';
+let currentDirection = localStorage.getItem('freight_direction') || 'outbound';
+let currentCustomerFilter = localStorage.getItem('freight_customer_filter') || null;
+let mainTab = localStorage.getItem('freight_main_tab') || 'all'; // 'all'(종합) | 'inbound'(수입) | 'outbound'(수출)
+let overviewGran = localStorage.getItem('freight_ov_gran') || 'month'; // 'week' | 'month' | 'year' (종합 차트 단위)
+let selectedYears = new Set(JSON.parse(localStorage.getItem('freight_ov_years') || '[]')); // 종합 차트 연도 다중선택(빈=전체)
+let hiddenCats = new Set(JSON.parse(localStorage.getItem('freight_hidden_cats') || '[]')); // 차트 범례로 숨긴 아이템 카테고리
+let selectedIds = new Set();   // 다중 선택된 화물 id (일괄 작업용)
+let currentVisibleIds = [];    // 현재 화면에 보이는 화물 id (전체 선택 대상)
+let inboundList = [];          // 인바운드 자재 리스트 (PDF 추출, freight_inbound_list)
+let inboundOpen = false;       // 인바운드 리스트 화면 표시 여부
+let inboundCustomer = localStorage.getItem('freight_inbound_customer') || 'Fluence'; // 인바운드 리스트 대상 고객
+let customerViewMode = localStorage.getItem('freight_customer_view') || 'project'; // 'project' | 'item'
+let latestSort = localStorage.getItem('freight_latest_sort') === '1'; // sort each group newest-first
+let activeId = null;
+let editingId = null;
+let saveTimer = null;
+let apiKey = '';
+let lastSaveState = 'loading';
+
+function setSaveStatus(state) {
+  lastSaveState = state;
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncText');
+  const map = {
+    loading: ['#7880a0', 'pulse 2s infinite', t('header.status.loading')],
+    ok:      ['#00d4aa', 'none',              t('header.status.ok')],
+    saving:  ['#4f8fff', 'pulse 1s infinite', t('header.status.saving')],
+    err:     ['#ff6b35', 'none',              t('header.status.err')],
+  };
+  const [col, anim, label] = map[state] || map.ok;
+  if (dot) { dot.style.background = col; dot.style.animation = anim; }
+  if (txt) txt.textContent = label;
+}
+
+
+
+// EPC inbound (Free issued items, all delivered) — registered as complete.
+// One-time seed: register the FLN inbound shipments (Gen6/GSP2000/GSP5000/SSTK)
+// parsed from the Free issued item delivery schedules. Idempotent - guarded by a
+// localStorage flag and de-duplicated by id, so it never overwrites existing data.
+function mergeInboundSeed() {
+  const merge = (seed, flag) => {
+    try {
+      if (localStorage.getItem(flag) || !Array.isArray(seed)) return;
+      const have = new Set(shipments.map(s => s.id));
+      let n = 0;
+      seed.forEach(s => { if (!have.has(s.id)) { shipments.push(JSON.parse(JSON.stringify(s))); n++; } });
+      localStorage.setItem(flag, '1');
+      if (n) { try { localStorage.setItem('freight_shipments', JSON.stringify(shipments)); } catch (e) {} }
+    } catch (e) {}
+  };
+  merge(typeof FLN_INBOUND_SEED !== 'undefined' && FLN_INBOUND_SEED, 'freight_seed_fln_inbound_v1');
+  merge(typeof EPC_INBOUND_SEED !== 'undefined' && EPC_INBOUND_SEED, 'freight_seed_epc_inbound_v1');
+}
+
+async function localLoad() {
+  setSaveStatus('loading');
+  try {
+    const data = JSON.parse(localStorage.getItem('freight_shipments') || '[]');
+    shipments = (Array.isArray(data) ? data : []).map(s => ({ direction: 'outbound', ...s }));
+    mergeInboundSeed();
+    setSaveStatus('ok');
+  } catch {
+    shipments = [];
+    setSaveStatus('err');
+  }
+  renderSidebar();
+}
+
+function localSave() {
+  setSaveStatus('saving');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem('freight_shipments', JSON.stringify(shipments));
+      setSaveStatus('ok');
+    } catch { setSaveStatus('err'); }
+  }, 300);
+  cloudSync();   // mirror changes to the shared cloud DB (no-op until logged in)
+}
+
+async function loadCustomers() {
+  try {
+    const stored = localStorage.getItem('freight_customers');
+    if (stored === null) {
+      // First run on this browser — seed with default customer list
+      customers = ['Fluence', 'EPC Power'];
+      localStorage.setItem('freight_customers', JSON.stringify(customers));
+    } else {
+      customers = JSON.parse(stored);
+      if (!Array.isArray(customers)) customers = [];
+    }
+  } catch { customers = []; }
+}
+
+async function saveCustomers() {
+  try {
+    localStorage.setItem('freight_customers', JSON.stringify(customers));
+  } catch {}
+  cloudSaveCustomers();
+}
+
+// ── Customer Modal ─────────────────────────────────────────────────
+function openCustomerModal() {
+  renderCustomerList();
+  document.getElementById('customerModal').classList.remove('hidden');
+  document.getElementById('newCustomerInput').value = '';
+  setTimeout(() => document.getElementById('newCustomerInput').focus(), 50);
+}
+
+function closeCustomerModal() {
+  document.getElementById('customerModal').classList.add('hidden');
+}
+
+function renderCustomerList() {
+  const el = document.getElementById('customerListItems');
+  if (!el) return;
+  if (!customers.length) {
+    el.innerHTML = `<div style="color:var(--text-dim);font-size:12px;padding:8px 0;">${t('customer.empty')}</div>`;
+    return;
+  }
+  el.innerHTML = customers.map((name, i) => `
+    <div class="customer-item">
+      <span class="customer-item-name">${esc(name)}</span>
+      <button class="btn btn-danger" onclick="deleteCustomer(${i})">${t('detail.delete')}</button>
+    </div>
+  `).join('');
+}
+
+async function addCustomer() {
+  const input = document.getElementById('newCustomerInput');
+  const name = input.value.trim();
+  if (!name) return;
+  if (customers.includes(name)) { showToast(t('customer.dup')); return; }
+  customers.push(name);
+  await saveCustomers();
+  input.value = '';
+  renderCustomerList();
+  showToast(`✅ ${esc(name)} 추가됨`);
+}
+
+async function deleteCustomer(idx) {
+  if (!confirm(t('confirm.customer.delete'))) return;
+  customers.splice(idx, 1);
+  await saveCustomers();
+  renderCustomerList();
+}
+
+function populateCustomerDropdown() {
+  const sel = document.getElementById('f-customer');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${t('ph.customer')}</option>` +
+    customers.map(name => `<option value="${esc(name)}" ${cur === name ? 'selected' : ''}>${esc(name)}</option>`).join('');
+}
+
+async function loadApiKey() {
+  try {
+    apiKey = localStorage.getItem('freight_api_key') || '';
+  } catch { apiKey = ''; }
+}
+
+async function persistApiKey(key) {
+  apiKey = key;
+  try {
+    localStorage.setItem('freight_api_key', key);
+  } catch {}
+}
+
+// ── PDF Parsing (direct browser fetch — Gemini or Anthropic) ───────
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+const PDF_PROMPT = `Extract shipping information from this booking document.
+Return ONLY a JSON object — no explanation, no markdown, no code fences.
+
+Rules:
+- Convert ALL dates to YYYY-MM-DD (e.g. "01/06/2026"→"2026-06-01", "06TH JUNE 2026"→"2026-06-06", "01-Jun-2026"→"2026-06-01", "26-May-26"→"2026-05-26")
+- etd = departure/sailing date from loading port; eta = arrival date at discharge port
+- weight = total gross weight as integer in kg only (convert tons→kg if needed: 1 MT = 1000 kg)
+- vessel = ship name only (no voyage); voyage = voyage/trip code only
+- pol = loading port city; pod = discharge port city (use short city name)
+- container_qty = total number of containers/equipment as an integer (e.g. "2 x 40HC" → 2, "1x20GP + 1x40HC" → 2)
+- Use "" for any field not found
+
+{"cargo_name":"","booking_no":"","carrier":"","vessel":"","voyage":"","pol":"","pod":"","etd":"","eta":"","weight":"","forwarder":"","container_no":"","container_qty":""}`;
+
+function extractJSON(text) {
+  let s = text.replace(/```json|```/g, '').trim();
+  try { return JSON.parse(s); } catch {}
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a !== -1 && b > a) {
+    try { return JSON.parse(s.slice(a, b + 1)); } catch {}
+  }
+  throw new Error('API 응답에서 JSON을 파싱할 수 없습니다: ' + s.slice(0, 120));
+}
+
+async function parsePDFData(base64Data, prompt = PDF_PROMPT, maxTokens = 1000) {
+  let resultText;
+  if (!apiKey.startsWith('sk-ant-')) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            role: 'user',
+            parts: [
+              { inline_data: { mime_type: 'application/pdf', data: base64Data } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: { temperature: 0 }
+        })
+      }
+    );
+    const json = await res.json();
+    if (json.error) return { error: `Gemini: ${json.error.message}` };
+    if (!json.candidates?.length) return { error: 'Gemini: 응답 없음 (빈 candidates)' };
+    resultText = json.candidates[0].content?.parts?.[0]?.text || '';
+  } else {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } },
+          { type: 'text', text: prompt }
+        ]}]
+      })
+    });
+    const json = await res.json();
+    if (json.error) return { error: `Anthropic: ${json.error.message}` };
+    resultText = (json.content || []).map(i => i.text || '').join('');
+  }
+  return { ok: true, data: extractJSON(resultText) };
+}
+
+async function handlePDF(file) {
+  if (!file || file.type !== 'application/pdf') {
+    showToast(t('pdf.wrong'));
+    return;
+  }
+  if (!apiKey) {
+    setParseStatus('err', t('pdf.nokey'));
+    return;
+  }
+  document.getElementById('pdfDrop')?.classList.remove('dragover');
+  setParseStatus('loading', t('pdf.analyzing'));
+  try {
+    const base64 = await fileToBase64(file);
+    const result = await parsePDFData(base64);
+    if (result.error) {
+      setParseStatus('err', '⚠️ ' + result.error);
+      return;
+    }
+    const p = result.data || result;
+    if (p.cargo_name)   setField('f-name',      p.cargo_name);
+    if (p.booking_no)   setField('f-ref',        p.booking_no);
+    if (p.pol)          setField('f-pol',        p.pol);
+    if (p.pod)          setField('f-pod',        p.pod);
+    if (p.weight)       setField('f-weight',     String(p.weight).replace(/[^0-9.]/g, ''));
+    if (p.forwarder)    setField('f-forwarder',  p.forwarder);
+    if (p.carrier)      setField('f-carrier',    p.carrier);
+    if (p.vessel)       setField('f-vessel',     p.vessel);
+    if (p.voyage)       setField('f-voyage',     p.voyage);
+    if (p.container_no) setField('f-ctnr',       p.container_no);
+    if (p.container_qty) setField('f-ctnrqty',   String(p.container_qty).replace(/[^0-9]/g, ''));
+    if (p.etd && p.etd.match(/^\d{4}-\d{2}-\d{2}$/)) setField('f-etd', p.etd);
+    if (p.eta && p.eta.match(/^\d{4}-\d{2}-\d{2}$/)) setField('f-eta', p.eta);
+    setParseStatus('ok', t('pdf.ok'));
+    showToast(t('pdf.toast'));
+  } catch (e) {
+    setParseStatus('err', '⚠️ ' + (e.message || t('pdf.err')));
+  }
+}
+
+function setParseStatus(type, msg) {
+  const el = document.getElementById('parseStatus');
+  if (!el) return;
+  el.classList.remove('hidden');
+  const spinner = type === 'loading' ? '<div class="spinner"></div>' : '';
+  el.innerHTML = `<div class="parse-status parse-${type}">${spinner}${esc(msg)}</div>`;
+}
+
+function onDrop(e) { e.preventDefault(); handlePDF(e.dataTransfer.files[0]); }
+function onFileSelect(f) { handlePDF(f); }
+
+// ── Inbound list (PDF → 인바운드 자재 리스트) ────────────────────────
+// Standalone screen: upload Fluence shipping-doc PDFs (CI/PL/AWB), the AI
+// extracts each line item, and rows are exported to the inbound-list Excel
+// template with Remark = FPN / MPN.
+const INBOUND_PDF_PROMPT = `Extract data from this Fluence shipping document (Commercial Invoice, Packing List, or Air Waybill) to build an inbound material delivery list.
+Return ONLY a JSON object — no explanation, no markdown, no code fences.
+
+Rules:
+- The line-item table may have columns like MPN, FPN, HS Code, Description, Quantity, Unit. Extract EVERY line item into "items".
+- mpn = Manufacturer Part Number (e.g. "PESS01-00858"). fpn = Fluence Part Number / FPN (e.g. "1001695480"). If only one part code is shown, put it in fpn and leave mpn "".
+- description = goods description; qty = quantity as integer; unit = unit (EA/PCS/...).
+- pallet_qty = pallet count for that line if shown; container_qty = container count if shown.
+- invoice_no = invoice number; po_no = customer PO number; project = project name.
+- bill_no = AWB/HBL/tracking number if present; ship_line = forwarder/carrier; vessel = vessel name; ship_method = Air/Sea.
+- Convert dates to YYYY-MM-DD. arrival_date / ata only if present.
+- Use "" for any field not found. If no line items, return one empty item.
+
+{"invoice_no":"","po_no":"","project":"","vessel":"","ship_method":"","bill_no":"","ship_line":"","arrival_date":"","ata":"","items":[{"mpn":"","fpn":"","description":"","qty":"","unit":"","pallet_qty":"","container_qty":""}]}`;
+
+function loadInbound() { try { inboundList = JSON.parse(localStorage.getItem('freight_inbound_list') || '[]'); } catch { inboundList = []; } }
+function saveInbound() { try { localStorage.setItem('freight_inbound_list', JSON.stringify(inboundList)); } catch {} }
+
+function openInboundList(customer) { inboundOpen = true; activeId = null; if (customer) setInboundCustomerState(customer); updateMainPanel(); }
+function closeInboundList() { inboundOpen = false; updateMainPanel(); }
+function setInboundCustomerState(c) { inboundCustomer = c; try { localStorage.setItem('freight_inbound_customer', c); } catch {} }
+function setInboundCustomer(c) { setInboundCustomerState(decodeURIComponent(c)); renderInboundList(); }
+
+function setInboundStatus(type, msg) {
+  const el = document.getElementById('inbStatus');
+  if (!el) return;
+  el.classList.remove('hidden');
+  const spinner = type === 'loading' ? '<div class="spinner"></div>' : '';
+  el.innerHTML = `<div class="parse-status parse-${type}">${spinner}${esc(msg)}</div>`;
+}
+
+function importInboundFromPdf() {
+  if (!apiKey) { setInboundStatus('err', t('pdf.nokey')); return; }
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.pdf'; input.multiple = true;
+  input.onchange = async () => {
+    const files = [...input.files];
+    if (!files.length) return;
+    setInboundStatus('loading', t('inb.analyzing').replace('{n}', files.length));
+    let added = 0, errs = 0;
+    for (const file of files) {
+      try {
+        const base64 = await fileToBase64(file);
+        const result = await parsePDFData(base64, INBOUND_PDF_PROMPT, 2500);
+        if (result.error) { errs++; continue; }
+        const p = result.data || {};
+        const items = (Array.isArray(p.items) && p.items.length) ? p.items : [{}];
+        items.forEach(it => {
+          if (!it.description && !it.fpn && !it.mpn && !it.qty) return; // skip empty
+          inboundList.push({
+            id: 'IB' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            customer: inboundCustomer,
+            description: it.description || '',
+            delivery: 'Bac Giang',
+            arrivalDate: p.arrival_date || '',
+            invoiceNo: p.invoice_no || p.po_no || '',
+            billNo: p.bill_no || '',
+            shipLine: p.ship_line || '',
+            ata: p.ata || '',
+            freeTime: '',
+            pjt: p.project || '',
+            shipMethod: p.ship_method || '',
+            containerQty: it.container_qty || '',
+            itemQty: it.qty || '',
+            pltQty: it.pallet_qty || '',
+            fpn: it.fpn || '',
+            mpn: it.mpn || '',
+          });
+          added++;
+        });
+      } catch (e) { errs++; }
+    }
+    saveInbound();
+    renderInboundList();
+    setInboundStatus(errs ? 'err' : 'ok', t('inb.done').replace('{added}', added).replace('{errs}', errs));
+  };
+  input.click();
+}
+
+function updateInbound(id, field, val) { const r = inboundList.find(x => x.id === id); if (r) { r[field] = val; saveInbound(); } }
+function deleteInbound(id) { inboundList = inboundList.filter(x => x.id !== id); saveInbound(); renderInboundList(); }
+function clearInbound() {
+  if (!confirm(t('inb.clearConfirm'))) return;
+  inboundList = inboundList.filter(r => (r.customer || 'Fluence') !== inboundCustomer); // clear current customer only
+  saveInbound(); renderInboundList();
+}
+
+function renderInboundList() {
+  const el = document.getElementById('inboundListView');
+  if (!el) return;
+  // Customer tabs (FLN/EPC ...). Inbound list is scoped to one customer.
+  const custOpts = (customers.length ? customers : ['Fluence', 'EPC Power']);
+  if (!custOpts.includes(inboundCustomer)) inboundCustomer = custOpts[0];
+  const items = inboundList.filter(r => (r.customer || 'Fluence') === inboundCustomer);
+  const custTabs = `<div class="inb-cust-tabs">` + custOpts.map(c =>
+    `<button class="inb-cust-tab ${c === inboundCustomer ? 'active' : ''}" onclick="setInboundCustomer('${encodeURIComponent(c)}')">${esc(customerFilePrefix(c))}</button>`
+  ).join('') + `</div>`;
+
+  const head = `<div class="inb-head">
+      <h2 class="dashboard-title">${t('inb.title')} <span style="color:var(--text-dim);font-size:13px;">· ${esc(customerFilePrefix(inboundCustomer))} · ${items.length}</span></h2>
+      <div class="inb-actions">
+        ${custTabs}
+        <button class="btn btn-ghost" onclick="importInboundFromPdf()">📄 ${t('inb.fromPdf')}</button>
+        <button class="btn btn-ghost" onclick="importInboundExcel()">⬆ ${t('inb.importExcel')}</button>
+        <button class="btn btn-ghost" onclick="exportInboundExcel()">⬇ Excel</button>
+        ${items.length ? `<button class="btn btn-ghost" onclick="clearInbound()">${t('inb.clear')}</button>` : ''}
+        <button class="btn btn-ghost" onclick="closeInboundList()">✕</button>
+      </div>
+    </div>
+    <div id="inbStatus" class="inb-status hidden"></div>`;
+  if (!items.length) {
+    el.innerHTML = head + `<div class="chart-empty">${t('inb.empty')}</div>`;
+    return;
+  }
+  const rows = items.map((r, i) => {
+    const remark = inboundRemark(r);
+    return `<tr>
+      <td>${i + 1}</td>
+      <td class="inb-desc">${esc(r.description)}</td>
+      <td>${esc(r.invoiceNo)}</td>
+      <td><input value="${esc(r.billNo)}" onchange="updateInbound('${r.id}','billNo',this.value)"></td>
+      <td><input value="${esc(r.shipLine)}" onchange="updateInbound('${r.id}','shipLine',this.value)"></td>
+      <td>${esc(r.pjt)}</td>
+      <td>${esc(r.itemQty)}</td>
+      <td>${esc(r.pltQty)}</td>
+      <td class="inb-remark">${esc(remark) || '—'}</td>
+      <td><input type="date" value="${esc(r.ata)}" onchange="updateInbound('${r.id}','ata',this.value)"></td>
+      <td><button class="btn-icon-xs" onclick="deleteInbound('${r.id}')" title="${t('detail.delete')}">🗑</button></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = head + `<div class="inb-table-wrap"><table class="inb-table"><thead><tr>
+      <th>No</th><th>${t('inb.desc')}</th><th>Invoice</th><th>Bill no</th><th>${t('inb.shipline')}</th>
+      <th>PJT</th><th>Item</th><th>PLT</th><th>Remark (FPN/MPN)</th><th>ATA</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// Inbound "Free issued item delivery schedule" — columns match the attached
+// FLN_*_Free issued item delivery schedule templates exactly. Rows are grouped
+// into worksheets by their source category (sheet name on import); rows with
+// no category go to a single "Inbound" sheet.
+const INBOUND_HEADERS = ['No', 'Description', 'Delivery', 'Arrival Date\n3rd party W/H', 'Arrival Date\nThe Factory', 'Invoice NO.', 'Bill no', 'Shipping Line', 'ATA', 'Free time', 'PJT', 'Container QTY', 'ITEM QTY', 'PLT QTY', 'Remark'];
+const INBOUND_WIDTHS = [6, 30, 12, 15, 15, 18, 16, 13, 13, 11, 20, 13, 11, 10, 24];
+
+function inboundRemark(r) { return r.remark || [r.fpn, r.mpn].filter(Boolean).join(' / '); }
+
+// Map an inbound shipment to a Free-issued-item-list row.
+function shipmentToInboundRow(s) {
+  return {
+    description: s.name || '', delivery: 'Bac Giang',
+    arrival3rd: s.warehouse3pwInDate || '', arrivalDate: s.eta || '',
+    invoiceNo: s.invoiceNo || '', billNo: s.ref || '',
+    shipLine: s.forwarder || s.carrier || '', ata: s.gateInDate || '',
+    freeTime: '', pjt: s.pjtName || '', containerQty: s.containerQty || '',
+    itemQty: s.itemQty || '', pltQty: s.pltQty || '',
+    remark: s.notes || '', category: s.itemType || 'Inbound',
+  };
+}
+
+// Detect the item-type for an imported Free issued item list sheet.
+function fileItemType(filename, sheetName) {
+  if (/gsp/i.test(filename)) return sheetName;     // GSP2000 / GSP5000
+  if (/gen6/i.test(filename)) return 'Gen6';
+  if (/sstk/i.test(filename)) return 'SSTK';
+  return sheetName || 'Inbound';
+}
+
+const EPC_INBOUND_HEADERS = ['No', 'Description', 'EPC PN', 'Delivery', 'Arrival Date\n3rd party W/H', 'Arrival Date\nThe Factory', 'PO NO.', 'Bill no', 'Shipping Line', 'ATA', 'Free time', 'PJT', 'Container QTY', 'QTY', 'PLT QTY', 'Remark', 'Status'];
+const EPC_INBOUND_WIDTHS = [5, 16, 13, 11, 15, 15, 16, 16, 13, 12, 11, 14, 13, 9, 9, 30, 11];
+
+// EPC inbound list keeps its own columns (EPC PN / PO NO. / QTY / Remark / Status);
+// the item name lives in Remark and the maker in Description.
+async function exportEpcInboundExcel(cust) {
+  const items = shipments.filter(s => (s.direction || 'outbound') === 'inbound' && (s.customer || '') === cust);
+  if (!items.length) { showToast(t('toast.excelNoData')); return; }
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Free issued', { views: [{ state: 'frozen', ySplit: 1 }] });
+  ws.columns = EPC_INBOUND_WIDTHS.map(width => ({ width }));
+  EPC_INBOUND_HEADERS.forEach((h, c) => {
+    const cell = ws.getCell(1, c + 1);
+    cell.value = h; cell.font = { name: EPC_FONT, bold: true, size: 11 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.fill = EPC_FILL_LIGHT_BLUE; cell.border = EPC_BOX_BORDER;
+  });
+  ws.getRow(1).height = 30;
+  items.forEach((s, i) => {
+    const arr3 = excelDateSerial(s.warehouse3pwInDate), arr = excelDateSerial(s.eta), ata = excelDateSerial(s.gateInDate);
+    const vals = [i + 1, s.maker || '', s.epcPn || '', 'Bac Giang',
+      arr3 !== null ? arr3 : (s.warehouse3pwInDate || ''), arr !== null ? arr : (s.eta || ''),
+      s.invoiceNo || '', s.ref || '', s.forwarder || '', ata !== null ? ata : (s.gateInDate || ''),
+      s.freeTime || '', s.pjtName || '', s.containerQty || '', s.itemQty || '', s.pltQty || '',
+      s.name || '', s.status || ''];
+    vals.forEach((v, c) => {
+      const cell = ws.getCell(i + 2, c + 1);
+      cell.font = { name: EPC_FONT, size: 11 };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: c === 15 };
+      cell.border = EPC_BOX_BORDER;
+      if ((c === 4 || c === 5 || c === 9) && typeof v === 'number') cell.numFmt = EXCEL_DATE_FMT;
+      if (v !== '' && v != null) cell.value = v;
+    });
+  });
+  await downloadWorkbook(wb, 'EPC_Free Issued Items Delivery Schedule.xlsx');
+  showToast(t('toast.excelExported'));
+}
+
+async function exportInboundExcel(customer) {
+  if (typeof ExcelJS === 'undefined') { showToast(t('excel.lib.err')); return; }
+  const cust = customer || currentCustomerFilter || 'Fluence';
+  if (/epc/i.test(cust)) return exportEpcInboundExcel(cust);
+  // Inbound list = inbound shipments for this customer, grouped by item type.
+  const items = shipments
+    .filter(s => (s.direction || 'outbound') === 'inbound' && (s.customer || '(미분류)') === cust)
+    .map(shipmentToInboundRow);
+  if (!items.length) { showToast(t('toast.excelNoData')); return; }
+
+  // group rows by source category (worksheet)
+  const byCat = {};
+  items.forEach(r => { const cat = (r.category || 'Inbound'); (byCat[cat] = byCat[cat] || []).push(r); });
+
+  const wb = new ExcelJS.Workbook();
+  Object.entries(byCat).forEach(([cat, rows]) => {
+    const sheetName = (cat || 'Inbound').replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31) || 'Inbound';
+    const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = INBOUND_WIDTHS.map(width => ({ width }));
+    INBOUND_HEADERS.forEach((h, c) => {
+      const cell = ws.getCell(1, c + 1);
+      cell.value = h;
+      cell.font = { name: EPC_FONT, bold: true, size: 11 };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.fill = EPC_FILL_LIGHT_BLUE;
+      cell.border = EPC_BOX_BORDER;
+    });
+    ws.getRow(1).height = 30;
+    rows.forEach((r, i) => {
+      const arr3 = excelDateSerial(r.arrival3rd);
+      const arr = excelDateSerial(r.arrivalDate);
+      const ata = excelDateSerial(r.ata);
+      const vals = [i + 1, r.description, r.delivery || 'Bac Giang',
+        arr3 !== null ? arr3 : (r.arrival3rd || ''), arr !== null ? arr : (r.arrivalDate || ''),
+        r.invoiceNo, r.billNo, r.shipLine, ata !== null ? ata : (r.ata || ''), r.freeTime,
+        r.pjt, r.containerQty, r.itemQty, r.pltQty, inboundRemark(r)];
+      vals.forEach((v, c) => {
+        const cell = ws.getCell(i + 2, c + 1);
+        cell.font = { name: EPC_FONT, size: 11 };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: c === 1 };
+        cell.border = EPC_BOX_BORDER;
+        if ((c === 3 || c === 4 || c === 8) && typeof v === 'number') cell.numFmt = EXCEL_DATE_FMT;
+        if (v !== '' && v != null) cell.value = v;
+      });
+    });
+  });
+
+  await downloadWorkbook(wb, `${customerFilePrefix(cust)}_Free issued item list.xlsx`);
+  showToast(t('toast.excelExported'));
+}
+
+// Import a Free issued item delivery schedule xlsx (all sheets) into the
+// inbound list for the current customer (round-trips with exportInboundExcel).
+function importInboundExcel(customer) {
+  if (typeof XLSX === 'undefined') { showToast(t('excel.lib.err')); return; }
+  const cust = customer || currentCustomerFilter || 'Fluence';
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.xlsx'; input.multiple = true;
+  input.onchange = async () => {
+    const files = [...input.files];
+    if (!files.length) return;
+    let added = 0;
+    for (const file of files) {
+      try {
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        wb.SheetNames.forEach(sn => {
+          const ws = wb.Sheets[sn];
+          if (!ws || !ws['!ref']) return;
+          const range = XLSX.utils.decode_range(ws['!ref']);
+          let hr = -1, hrEpc = -1;
+          for (let r = range.s.r; r <= Math.min(range.s.r + 7, range.e.r); r++) {
+            const row = [];
+            for (let c = range.s.c; c <= range.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r, c })]; row.push(cell ? String(cell.v).replace(/\s+/g, ' ').trim() : ''); }
+            if (row.includes('EPC PN')) hrEpc = r;                                   // EPC layout has its own header row
+            if (hr === -1 && row.includes('No') && row.includes('Description')) hr = r;
+          }
+          const isEpc = hrEpc !== -1;
+          if (isEpc) hr = hrEpc;
+          if (hr === -1) return;
+          const col = {};
+          for (let c = range.s.c; c <= range.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: hr, c })]; if (cell && cell.v != null) col[String(cell.v).replace(/\s+/g, ' ').trim()] = c; }
+          const find = (...names) => { for (const n of names) for (const k in col) if (k.toLowerCase() === n.toLowerCase()) return col[k]; return undefined; };
+          const cStr = (r, ci) => { if (ci == null) return ''; const cell = ws[XLSX.utils.encode_cell({ r, c: ci })]; return cell && cell.v != null ? String(cell.v).trim() : ''; };
+          const cDate = (r, ci) => { if (ci == null) return ''; const cell = ws[XLSX.utils.encode_cell({ r, c: ci })]; if (!cell || cell.v == null) return ''; return typeof cell.v === 'number' ? excelSerialToDateStr(cell.v) : String(cell.v).trim(); };
+          if (isEpc) {
+            // EPC inbound: Description=maker, Remark=item name, PO NO.=invoice, QTY=qty, Status (Delivered=완료).
+            const iNo = find('No'), iMaker = find('Description'), iPn = find('EPC PN'),
+              iArr3 = find('Arrival Date 3rd party W/H', 'Arrival Date 3rd party'),
+              iArrF = find('Arrival Date The Factory'), iPo = find('PO NO.', 'PO No.'),
+              iBill = find('Bill no'), iShip = find('Shipping Line'), iAta = find('ATA'),
+              iFree = find('Free time'), iPjt = find('PJT'), iCont = find('Container QTY'),
+              iQty = find('QTY', 'Item QTY'), iPlt = find('PLT QTY'), iRem = find('Remark'), iStat = find('Status');
+            const INB = ['cipl_hwb_received', 'cipl_reviewed', 'import_customs', 'port_arrival', 'trucking_booked', 'factory_received'];
+            for (let r = hr + 1; r <= range.e.r; r++) {
+              const no = cStr(r, iNo), maker = cStr(r, iMaker), rem = cStr(r, iRem);
+              if (!no && !maker && !rem) continue;
+              const arr3 = cDate(r, iArr3), status = cStr(r, iStat);
+              const checks = {}; if (status.toLowerCase() === 'delivered') INB.forEach(id => checks[id] = { done: true });
+              shipments.push({
+                id: 'S' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                direction: 'inbound', customer: 'EPC Power', itemType: 'M10',
+                name: rem || maker, maker, epcPn: cStr(r, iPn),
+                pjtName: cStr(r, iPjt), invoiceNo: cStr(r, iPo), ref: cStr(r, iBill),
+                forwarder: cStr(r, iShip), eta: cDate(r, iArrF), gateInDate: cDate(r, iAta),
+                freeTime: cStr(r, iFree), containerQty: cStr(r, iCont), itemQty: cStr(r, iQty), pltQty: cStr(r, iPlt),
+                status, via3pw: !!arr3, warehouse3pwInDate: arr3, notes: '',
+                pol: '', pod: '', weight: '', carrier: '', vessel: '', voyage: '', container: '', etd: '', docCutoff: '', cargoCutoff: '', checks,
+              });
+              added++;
+            }
+            return;
+          }
+          const iNo = find('No'), iDesc = find('Description'), iDel = find('Delivery'),
+            iArr3 = find('Arrival Date 3rd party W/H', 'Arrival Date 3rd party'),
+            iArrF = find('Arrival Date The Factory', 'Arrival Date The Fluence'),
+            iInv = find('Invoice NO.', 'Invoice No.'), iBill = find('Bill no'), iShip = find('Shipping Line'),
+            iAta = find('ATA'), iFree = find('Free time'), iPjt = find('PJT'),
+            iCont = find('Container QTY'), iItem = find('ITEM QTY', 'Item QTY'), iPlt = find('PLT QTY');
+          // Scan the header row directly so sheets with TWO 'Remark' columns
+          // (GSP5000/SSTK: col = PJT, then a later notes col) keep both — a
+          // label→index map would collapse the duplicate keys and drop the PJT.
+          const remarkCols = [];
+          for (let c = range.s.c; c <= range.e.c; c++) { const hc = ws[XLSX.utils.encode_cell({ r: hr, c })]; if (hc && hc.v != null && String(hc.v).replace(/\s+/g, ' ').trim().toLowerCase() === 'remark') remarkCols.push(c); }
+          const projCol = (iPjt != null) ? iPjt : (remarkCols[0]);
+          const remCol = (iPjt != null) ? remarkCols[0] : remarkCols[1];
+          const itemType = fileItemType(file.name, sn);
+          for (let r = hr + 1; r <= range.e.r; r++) {
+            const desc = cStr(r, iDesc), no = cStr(r, iNo);
+            if (!desc && !no) continue;
+            const arr3 = cDate(r, iArr3);          // Arrival Date 3rd party W/H
+            shipments.push({
+              id: 'S' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+              direction: 'inbound', customer: cust, itemType,
+              name: desc,                          // Description
+              pjtName: cStr(r, projCol),           // PJT / project
+              ref: cStr(r, iBill),                 // Bill no
+              invoiceNo: cStr(r, iInv),
+              forwarder: cStr(r, iShip),           // Shipping Line
+              eta: cDate(r, iArrF),                // Arrival (Factory)
+              gateInDate: cDate(r, iAta),          // ATA
+              containerQty: cStr(r, iCont), itemQty: cStr(r, iItem), pltQty: cStr(r, iPlt),
+              notes: cStr(r, remCol),              // Remark
+              via3pw: !!arr3, warehouse3pwInDate: arr3,  // a 3rd-party arrival date means it was routed through a 3PW
+              pol: '', pod: '', weight: '', carrier: '', vessel: '', voyage: '', container: '', etd: '', docCutoff: '', cargoCutoff: '', checks: {},
+            });
+            added++;
+          }
+        });
+      } catch (e) { /* skip bad file */ }
+    }
+    localSave(); renderSidebar(); updateMainPanel();
+    showToast(`${customerFilePrefix(cust)} · ` + t('inb.imported').replace('{n}', added));
+  };
+  input.click();
+}
+
+// ── Settings Modal ─────────────────────────────────────────────────
+function openSettingsModal() {
+  document.getElementById('apiKeyInput').value = apiKey || '';
+  document.getElementById('settingsModal').classList.remove('hidden');
+  document.getElementById('apiKeyInput').focus();
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+async function submitApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  await persistApiKey(key);
+  closeSettingsModal();
+  showToast(t('settings.saved'));
+}
+
+// ── Excel export (generate new file) ────────────────────────────────
+const EXCEL_DATE_FMT = '[$-409]d"-"mmm;@';
+const EXCEL_UPDATED_FMT = '[$-409]d"-"mmm"-"yy;@';
+
+// Convert a 'YYYY-MM-DD' string to a clean Excel date serial (no time fraction).
+function excelDateSerial(dateStr) {
+  if (!dateStr) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (!m) return null;
+  const utcMs = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const epochMs = Date.UTC(1899, 11, 30);
+  return Math.round((utcMs - epochMs) / 86400000);
+}
+
+// Convert an Excel date serial back to a 'YYYY-MM-DD' string.
+function excelSerialToDateStr(serial) {
+  if (typeof serial !== 'number' || !isFinite(serial)) return '';
+  const ms = Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000;
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+// Cell styling that mirrors the original booking-schedule template's colors/fonts/borders.
+const EPC_FONT = '맑은 고딕';
+const EPC_THIN = { style: 'thin', color: { argb: 'FF000000' } };
+const EPC_BOX_BORDER = { top: EPC_THIN, left: EPC_THIN, bottom: EPC_THIN, right: EPC_THIN };
+const EPC_BOTTOM_BORDER = { bottom: EPC_THIN };
+const EPC_FILL_LIGHT_BLUE = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDAE3F3' } };
+const EPC_FILL_MED_BLUE = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB4C7E7' } };
+const EPC_FILL_GRAY = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBFBFBF' } };
+const EPC_GREEN = { argb: 'FF00B050' };
+
+// Master column definitions for the "Vessel Booking Schedule" export, keyed by
+// header label. `field` is the shipment property the column maps to (null = the
+// row-index "No" column); `type` drives value coercion (date → Excel serial,
+// number → numeric, text → string); `style` is the data-row cell styling.
+const SHIP_COLS = {
+  'No':                   { field: null,           type: 'index',  width: 6.58,  style: { font: { bold: true, size: 13 } } },
+  'Confirmation':         { field: 'confirmation', type: 'text',   width: 16.33, style: { font: { bold: true, size: 13, color: EPC_GREEN } } },
+  'DG Approval':          { field: 'dgApproval',   type: 'text',   width: 16.25, style: { font: { bold: true, size: 13, color: EPC_GREEN }, fill: EPC_FILL_GRAY } },
+  'Vessel':               { field: 'vessel',       type: 'text',   width: 44.75, style: { font: { size: 13 }, fill: EPC_FILL_LIGHT_BLUE } },
+  'PJT':                  { field: 'name',         type: 'text',   width: 29.83, style: { font: { size: 13 } } },
+  'CT QTY':               { field: 'containerQty', type: 'number', width: 13.33, style: { font: { bold: true, size: 13 }, wrap: true } },
+  "Unit Q'ty":            { field: 'unitQty',      type: 'text',   width: 13.33, style: { font: { bold: true, size: 13 }, wrap: true } },
+  'Item':                 { field: 'item',         type: 'text',   width: 18.83, style: { font: { bold: true, size: 13 }, wrap: true } },
+  'SOC/COC':              { field: 'socCoc',       type: 'text',   width: 13.33, style: { font: { size: 13 } } },
+  'ETA Hai phong':        { field: 'eta',          type: 'date',   width: 19.08, style: { font: { size: 13 }, numFmt: EXCEL_DATE_FMT } },
+  'ETD Hai Phong':        { field: 'etd',          type: 'date',   width: 19.08, style: { font: { size: 13 }, numFmt: EXCEL_DATE_FMT } },
+  'LAYCAN (if any)':      { field: 'laycan',       type: 'text',   width: 19.08, style: { font: { size: 13 }, numFmt: EXCEL_DATE_FMT } },
+  'Shipping Line':        { field: 'carrier',      type: 'text',   width: 22.33, style: { font: { size: 13 } } },
+  'Forwarder':            { field: 'forwarder',    type: 'text',   width: 19.08, style: { font: { size: 13 } } },
+  'Doc Closing time':     { field: 'docCutoff',    type: 'date',   width: 20.08, style: { font: { size: 13 }, numFmt: EXCEL_DATE_FMT } },
+  'Cargo Closing time':   { field: 'cargoCutoff',  type: 'date',   width: 20.83, style: { font: { size: 13 }, numFmt: EXCEL_DATE_FMT } },
+  'Soonest gate in date': { field: 'gateInDate',   type: 'date',   width: 20.83, style: { font: { size: 13 }, numFmt: EXCEL_DATE_FMT } },
+  'Booking No#':          { field: 'ref',          type: 'text',   width: 23.33, style: { font: { size: 13 } } },
+  'REMARKS':              { field: 'notes',        type: 'text',   width: 51.08, style: { font: { size: 13 } } },
+};
+
+// Column order per customer template. The EPC sheet includes a "Unit Q'ty"
+// column; the Fluence/FLN booking schedule does not. `row2` selects the
+// row-2 treatment: 'updated' = an "Updated on <date>" stamp (EPC),
+// 'legend' = the "Shipped / To be shipped" colour legend used by FLN.
+const EPC_TEMPLATE = {
+  headers: ['No','Confirmation','DG Approval','Vessel','PJT','CT QTY',"Unit Q'ty",'Item','SOC/COC','ETA Hai phong','ETD Hai Phong','LAYCAN (if any)','Shipping Line','Forwarder','Doc Closing time','Cargo Closing time','Soonest gate in date','Booking No#','REMARKS'],
+  row2: 'updated',
+};
+const FLN_TEMPLATE = {
+  headers: EPC_TEMPLATE.headers.filter(h => h !== "Unit Q'ty"),
+  row2: 'legend',
+};
+function exportTemplateFor(customer) {
+  return /fluence|fln/i.test(customer) ? FLN_TEMPLATE : EPC_TEMPLATE;
+}
+
+function customerFilePrefix(customer) {
+  if (/epc/i.test(customer)) return 'EPC';
+  if (/fluence|fln/i.test(customer)) return 'FLN';
+  return String(customer || '').replace(/[^\w가-힣]+/g, '_') || 'Shipment';
+}
+
+function downloadWorkbook(wb, fileName) {
+  return wb.xlsx.writeBuffer().then(buf => {
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+}
+
+// Builds a brand-new "Shipping Info" sheet in the customer's booking-schedule
+// template format (incl. colors/fonts/borders) from all current outbound
+// shipments for `customer`, and downloads it as a new .xlsx file. The column
+// set / row-2 treatment follow the per-customer template (EPC vs FLN).
+async function exportExcelForCustomer(customer) {
+  if (typeof ExcelJS === 'undefined') { showToast(t('excel.lib.err')); return; }
+
+  const items = shipments.filter(s => (s.customer || '(미분류)') === customer && (s.direction || 'outbound') === 'outbound');
+  if (!items.length) { showToast(t('toast.excelNoData')); return; }
+
+  const tpl = exportTemplateFor(customer);
+  const headers = tpl.headers;
+  const colCount = headers.length;
+  const prefix = customerFilePrefix(customer);
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Shipping Info', { views: [{ state: 'frozen', ySplit: 3 }] });
+  ws.columns = headers.map(h => ({ width: SHIP_COLS[h].width }));
+
+  // Title row, merged across all columns.
+  ws.mergeCells(1, 1, 1, colCount);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = `${prefix} Vessel Booking Schedule`;
+  titleCell.font = { name: EPC_FONT, bold: true, size: 48 };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 87;
+
+  // Row 2: either the "Shipped / To be shipped" colour legend (FLN) or an
+  // "Updated on <date>" stamp (EPC).
+  if (tpl.row2 === 'legend') {
+    const shipped = ws.getCell(2, 2);
+    shipped.value = 'Shipped';
+    shipped.fill = EPC_FILL_LIGHT_BLUE;
+    shipped.border = EPC_BOX_BORDER;
+    shipped.font = { name: EPC_FONT, size: 11 };
+    shipped.alignment = { horizontal: 'center', vertical: 'middle' };
+    const tbs = ws.getCell(2, 3);
+    tbs.value = 'To be shipped';
+    tbs.border = EPC_BOX_BORDER;
+    tbs.font = { name: EPC_FONT, size: 11 };
+    tbs.alignment = { horizontal: 'center', vertical: 'middle' };
+  } else {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const updatedLabel = ws.getCell(2, colCount - 1);
+    updatedLabel.value = 'Updated on';
+    updatedLabel.font = { name: EPC_FONT, bold: true, size: 16 };
+    updatedLabel.alignment = { horizontal: 'right', vertical: 'middle' };
+    updatedLabel.border = EPC_BOTTOM_BORDER;
+
+    const updatedDate = ws.getCell(2, colCount);
+    updatedDate.value = excelDateSerial(todayStr);
+    updatedDate.numFmt = EXCEL_UPDATED_FMT;
+    updatedDate.font = { name: EPC_FONT, bold: true, size: 16 };
+    updatedDate.alignment = { horizontal: 'center', vertical: 'middle' };
+    updatedDate.border = EPC_BOTTOM_BORDER;
+  }
+  ws.getRow(2).height = 42;
+
+  // Header row.
+  headers.forEach((h, c) => {
+    const cell = ws.getCell(3, c + 1);
+    cell.value = h;
+    cell.font = { name: EPC_FONT, bold: true, size: 14 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = EPC_BOX_BORDER;
+    if (h === 'REMARKS') cell.fill = EPC_FILL_MED_BLUE;
+  });
+  ws.getRow(3).height = 66;
+
+  // Data rows.
+  items.forEach((s, i) => {
+    const r = 4 + i;
+    headers.forEach((h, c) => {
+      const spec = SHIP_COLS[h];
+      const st = spec.style;
+      const cell = ws.getCell(r, c + 1);
+      cell.font = Object.assign({ name: EPC_FONT }, st.font);
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: !!st.wrap };
+      cell.border = EPC_BOX_BORDER;
+      if (st.fill) cell.fill = st.fill;
+      if (st.numFmt) cell.numFmt = st.numFmt;
+
+      let v;
+      if (spec.type === 'index') {
+        v = i + 1;
+      } else if (spec.type === 'number') {
+        const n = Number(s[spec.field]);
+        v = (s[spec.field] !== '' && s[spec.field] != null && isFinite(n)) ? n : undefined;
+      } else if (spec.type === 'date') {
+        const d = excelDateSerial(s[spec.field]);
+        v = d !== null ? d : undefined;
+      } else {
+        v = s[spec.field] || undefined;
+      }
+      if (v !== undefined && v !== null && v !== '') cell.value = v;
+    });
+    ws.getRow(r).height = 20.5;
+  });
+
+  await downloadWorkbook(wb, `${prefix}_Vessel Booking Schedule.xlsx`);
+  showToast(t('toast.excelExported'));
+}
+
+function exportExcelForCustomerId(custId) {
+  exportExcelForCustomer(decodeURIComponent(custId));
+}
+
+// Sidebar customer Excel icon: direction-aware. Outbound → Vessel Booking
+// Schedule; Inbound → Free issued item list (인바운드 리스트) for that customer.
+function exportSidebarCustomer(custId) {
+  const cust = decodeURIComponent(custId);
+  if (mainTab === 'inbound') exportInboundExcel(cust);
+  else exportExcelForCustomer(cust);
+}
+
+// Header Excel-import button: Outbound tab imports a Vessel Booking Schedule
+// into shipments; Inbound tab imports a Free issued item list into the inbound
+// list (for the selected customer, default Fluence).
+function importForCurrentTab() {
+  if (mainTab === 'inbound') importInboundExcel();
+  else importExcel();
+}
+
+// Header button: export an EPC-template Excel file for every customer with shipments.
+async function exportExcelAll() {
+  if (typeof ExcelJS === 'undefined') { showToast(t('excel.lib.err')); return; }
+
+  const custs = [...new Set(shipments.map(s => s.customer || '(미분류)'))];
+  if (!custs.length) { showToast(t('toast.excelNoData')); return; }
+
+  for (const cust of custs) {
+    await exportExcelForCustomer(cust);
+  }
+}
+
+// Reads an EPC-template Excel file and syncs its "Shipping Info" rows into
+// `shipments`. The customer is taken from the title cell (e.g. "EPC
+// Vessel Booking Schedule" → "EPC Power", "FLN ..." → "Fluence"). Rows with
+// a Booking No# are matched against shipments that existed before this
+// import to update them (preserving id/checklist state); rows without a
+// Booking No# are always appended as new. Matching only considers
+// pre-existing shipments (not rows just added in this same pass), so two
+// rows in the same file that share a Booking No# — a single booking can
+// cover multiple distinct cargo line-items — are both kept as separate
+// shipments instead of the second overwriting the first.
+function importExcel() {
+  if (typeof XLSX === 'undefined') { showToast(t('excel.lib.err')); return; }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellStyles: true });
+      const sheetName = wb.SheetNames.find(n => /shipping/i.test(n)) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const range = XLSX.utils.decode_range(ws['!ref']);
+
+      let headerRow = -1;
+      for (let r = range.s.r; r <= Math.min(range.s.r + 6, range.e.r); r++) {
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const cell = ws[XLSX.utils.encode_cell({ r, c })];
+          if (cell && String(cell.v).trim() === 'No') { headerRow = r; break; }
+        }
+        if (headerRow !== -1) break;
+      }
+      if (headerRow === -1) throw new Error('header row not found');
+
+      const colIndex = {};
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: headerRow, c })];
+        if (cell && cell.v !== undefined) colIndex[String(cell.v).trim()] = c;
+      }
+
+      const titleCell = ws[XLSX.utils.encode_cell({ r: 0, c: 0 })];
+      const prefix = titleCell ? String(titleCell.v).trim().replace(/\s*Vessel Booking Schedule\s*$/i, '') : '';
+      const CUSTOMER_PREFIX_MAP = { EPC: 'EPC Power', FLN: 'Fluence' };
+      const customer = CUSTOMER_PREFIX_MAP[prefix] || prefix || 'EPC Power';
+
+      const cellStr = (r, label) => {
+        const c = colIndex[label];
+        if (c === undefined) return '';
+        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+        return cell && cell.v !== undefined ? String(cell.v).trim() : '';
+      };
+      const cellDate = (r, label) => {
+        const c = colIndex[label];
+        if (c === undefined) return '';
+        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+        return cell ? excelSerialToDateStr(cell.v) : '';
+      };
+
+      let added = 0, updated = 0;
+      const existingShipments = shipments.slice();
+      for (let r = headerRow + 1; r <= range.e.r; r++) {
+        const vessel = cellStr(r, 'Vessel');
+        const name = cellStr(r, 'PJT');
+        if (!vessel && !name) continue;
+
+        const ref = cellStr(r, 'Booking No#');
+        const fields = {
+          customer, name, ref,
+          forwarder: cellStr(r, 'Forwarder'),
+          carrier: cellStr(r, 'Shipping Line'),
+          vessel,
+          etd: cellDate(r, 'ETD Hai Phong'),
+          eta: cellDate(r, 'ETA Hai phong'),
+          containerQty: cellStr(r, 'CT QTY'),
+          docCutoff: cellDate(r, 'Doc Closing time'),
+          cargoCutoff: cellDate(r, 'Cargo Closing time'),
+          gateInDate: cellDate(r, 'Soonest gate in date'),
+          confirmation: cellStr(r, 'Confirmation'),
+          dgApproval: cellStr(r, 'DG Approval'),
+          item: cellStr(r, 'Item'),
+          socCoc: cellStr(r, 'SOC/COC'),
+          laycan: cellStr(r, 'LAYCAN (if any)'),
+          notes: cellStr(r, 'REMARKS'),
+        };
+
+        const existing = ref ? existingShipments.find(s => s.customer === customer && s.ref === ref) : null;
+
+        if (existing) {
+          Object.assign(existing, fields);
+          updated++;
+        } else {
+          shipments.push({
+            id: 'S' + Date.now() + '_' + r,
+            direction: 'outbound',
+            ...fields,
+            pol: '', pod: '', weight: '', voyage: '', container: '',
+            checks: {},
+          });
+          added++;
+        }
+      }
+
+      if (!added && !updated) { showToast(t('toast.importNoData')); return; }
+
+      if (!customers.includes(customer)) {
+        customers.push(customer);
+        await saveCustomers();
+      }
+
+      localSave();
+      renderSidebar();
+      renderDetail();
+      showToast(t('toast.importDone').replace('{added}', added).replace('{updated}', updated));
+    } catch (err) {
+      console.error(err);
+      showToast(t('toast.importErr'));
+    }
+  };
+  input.click();
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getPct(s) {
+  const ids = stepIdsFor(s);
+  return Math.round(ids.filter(id => s.checks[id]?.done).length / ids.length * 100);
+}
+
+function getBadge(pct) {
+  if (pct === 100) return { cls: 'badge-done',        label: t('badge.done') };
+  if (pct === 0)   return { cls: 'badge-pending',     label: t('badge.pending') };
+  return                   { cls: 'badge-inprogress', label: t('badge.inprogress') };
+}
+
+function fmtDate(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString(
+    currentLang === 'ko' ? 'ko-KR' : 'en-US',
+    { month: 'short', day: 'numeric' }
+  );
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────
+function onSidebarSearch(value) {
+  sidebarSearch = value.trim().toLowerCase();
+  renderSidebar();
+}
+
+function toggleDirGroup(key) {
+  const k = decodeURIComponent(key);
+  if (collapsedDirGroups.has(k)) collapsedDirGroups.delete(k);
+  else collapsedDirGroups.add(k);
+  renderSidebar();
+}
+
+function toggleProjectGroup(key) {
+  const k = decodeURIComponent(key);
+  if (collapsedProjects.has(k)) collapsedProjects.delete(k);
+  else collapsedProjects.add(k);
+  renderSidebar();
+}
+
+function exportShareData() {
+  const data = {
+    shipments,
+    customers,
+    apiKey: localStorage.getItem('freight_api_key') || '',
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'freight_share_data.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast(t('toast.shareDataExported'));
+}
+
+const DIRECTION_ORDER = ['inbound', 'outbound'];
+
+const EXCEL_ICON_SVG = `<svg width="12" height="12" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle"><rect width="16" height="16" rx="2" fill="#217346"/><rect x="2" y="2" width="12" height="12" fill="none" stroke="#fff" stroke-width="1"/><line x1="2" y1="6" x2="14" y2="6" stroke="#fff" stroke-width="1"/><line x1="2" y1="10" x2="14" y2="10" stroke="#fff" stroke-width="1"/><line x1="6.5" y1="2" x2="6.5" y2="14" stroke="#fff" stroke-width="1"/><line x1="10.5" y1="2" x2="10.5" y2="14" stroke="#fff" stroke-width="1"/></svg>`;
+
+function renderSidebar() {
+  renderMainTabs();
+  const list = document.getElementById('shipmentList');
+  const cnt  = document.getElementById('shipmentCount');
+
+  const q = sidebarSearch;
+  // Top-level tab = direction filter. '종합'(all) shows everything combined.
+  const base = mainTab === 'all' ? shipments : shipments.filter(s => (s.direction || 'outbound') === mainTab);
+  const filtered = q
+    ? base.filter(s => (s.ref || '').toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q))
+    : base;
+
+  if (cnt) cnt.textContent = filtered.length + t('sidebar.count');
+
+  if (!shipments.length) {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px;">${t('sidebar.empty')}</div>`;
+    return;
+  }
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px;">${q ? t('sidebar.noResults') : t('sidebar.emptyDir')}</div>`;
+    return;
+  }
+
+  // 종합(all): comprehensive overview — summary tiles + flat latest-first list.
+  // (No customer classification here, per design.)
+  if (mainTab === 'all') {
+    list.innerHTML = renderOverviewHtml(filtered);
+    return;
+  }
+
+  // 수입/수출: classified by customer (selector → drill-down). Direction is
+  // already fixed by the tab, so there is no inbound/outbound sub-level.
+
+  // While searching: flat per-customer → project view (auto-expanded).
+  if (q) {
+    currentVisibleIds = filtered.map(s => s.id);
+    const byCustomer = {};
+    filtered.forEach(s => { const c = s.customer || '(미분류)'; (byCustomer[c] = byCustomer[c] || []).push(s); });
+    list.innerHTML = selectionBarHtml() + Object.entries(byCustomer).map(([custName, items]) => {
+      const cid = encodeURIComponent(custName);
+      const byProj = {};
+      items.forEach(s => { const p = projectKeyOf(s); (byProj[p] = byProj[p] || []).push(s); });
+      return `<div class="customer-group">
+        <div class="customer-header">
+          <span class="customer-toggle">▼</span>
+          <span class="customer-name">${esc(custName)}</span>
+          <span class="customer-count">${items.length}${t('sidebar.count')}</span>
+          <button class="btn-icon-xs" onclick="event.stopPropagation(); exportSidebarCustomer('${cid}')" title="${t('header.exportExcel')}" data-i18n-title="header.exportExcel">${EXCEL_ICON_SVG}</button>
+        </div>
+        <div class="customer-shipments">${renderProjectGroupsHtml(byProj, custName + '::' + mainTab, true)}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  const customerExists = currentCustomerFilter && filtered.some(s => (s.customer || '(미분류)') === currentCustomerFilter);
+
+  if (!customerExists) {
+    const counts = {};
+    filtered.forEach(s => { const c = s.customer || '(미분류)'; counts[c] = (counts[c] || 0) + 1; });
+    list.innerHTML = `<div class="customer-selector-hint">${t('sidebar.selectCustomer')}</div>` +
+      Object.entries(counts).map(([custName, count]) => {
+        const cid = encodeURIComponent(custName);
+        return `<div class="customer-group">
+          <div class="customer-header" onclick="selectCustomerFilter('${cid}')">
+            <span class="customer-nav-arrow">›</span>
+            <span class="customer-name">${esc(custName)}</span>
+            <span class="customer-count">${count}${t('sidebar.count')}</span>
+            <button class="btn-icon-xs" onclick="event.stopPropagation(); exportSidebarCustomer('${cid}')" title="${t('header.exportExcel')}" data-i18n-title="header.exportExcel">${EXCEL_ICON_SVG}</button>
+          </div>
+        </div>`;
+      }).join('');
+    return;
+  }
+
+  const cust = currentCustomerFilter;
+  const items = filtered.filter(s => (s.customer || '(미분류)') === cust);
+  currentVisibleIds = items.map(s => s.id);
+  const custId = encodeURIComponent(cust);
+  const isFLN = /fluence|fln/i.test(cust);
+  const mode = (customerViewMode === 'item' && isFLN) ? 'item' : 'project';
+
+  // Single "보기 기준" dropdown: grouping (project / item) + a 최신순 sort toggle
+  // that keeps the current grouping and only sorts within each group.
+  const curLabel = t(mode === 'item' ? 'view.item' : 'view.project') + (latestSort ? ' · ' + t('view.latest') : '');
+  const viewBar = `<details class="view-dd">
+    <summary class="view-dd-head"><span>${curLabel}</span><span class="view-dd-caret">▾</span></summary>
+    <div class="view-dd-panel">
+      <button class="view-dd-opt ${mode === 'project' ? 'sel' : ''}" onclick="setCustomerViewMode('project')">${t('view.project')}</button>
+      ${isFLN ? `<button class="view-dd-opt ${mode === 'item' ? 'sel' : ''}" onclick="setCustomerViewMode('item')">${t('view.item')}</button>` : ''}
+      <div class="view-dd-sep"></div>
+      <button class="view-dd-opt ${latestSort ? 'sel' : ''}" onclick="toggleLatestSort()">${t('view.latest')}</button>
+    </div>
+  </details>`;
+
+  let body;
+  if (mode === 'item') {
+    const byCat = {};
+    items.forEach(s => { const c = flnItemCategory(s); (byCat[c] = byCat[c] || []).push(s); });
+    body = renderCategoryGroupsHtml(byCat, cust + '::__cat__');
+  } else {
+    const byProj = {};
+    items.forEach(s => { const p = projectKeyOf(s); (byProj[p] = byProj[p] || []).push(s); });
+    body = renderProjectGroupsHtml(byProj, cust + '::' + mainTab, false);
+  }
+
+  list.innerHTML = `<div class="customer-filter-bar">
+    <button class="customer-back-btn" onclick="clearCustomerFilter()">${t('sidebar.back')}</button>
+    <span class="customer-filter-name">${esc(cust)}</span>
+    <span class="customer-count">${items.length}${t('sidebar.count')}</span>
+    <button class="btn-icon-xs" onclick="exportSidebarCustomer('${custId}')" title="${t('header.exportExcel')}" data-i18n-title="header.exportExcel">${EXCEL_ICON_SVG}</button>
+  </div>` + viewBar + selectionBarHtml() + body;
+}
+
+// Top-level direction tabs: 종합(all) / 수입(inbound) / 수출(outbound).
+function renderMainTabs() {
+  const el = document.getElementById('mainTabs');
+  if (!el) return;
+  const defs = [['all', 'tab.all'], ['inbound', 'tab.inbound'], ['outbound', 'tab.outbound']];
+  el.innerHTML = defs.map(([tab, key]) => {
+    const n = tab === 'all' ? shipments.length : shipments.filter(s => (s.direction || 'outbound') === tab).length;
+    return `<button class="main-tab ${mainTab === tab ? 'active' : ''}" onclick="setMainTab('${tab}')">${t(key)}<span class="mt-count">${n}</span></button>`;
+  }).join('');
+}
+
+function setMainTab(tab) {
+  mainTab = tab;
+  try { localStorage.setItem('freight_main_tab', tab); } catch {}
+  activeId = null;            // switching top tab clears the open shipment
+  selectedIds.clear();        // and the multi-selection
+  renderSidebar();
+  updateMainPanel();
+}
+
+// 종합 overview: status summary tiles + a flat newest-first list of every
+// shipment (each card tagged with its direction + customer).
+function renderOverviewHtml(items) {
+  let done = 0, prog = 0, pend = 0;
+  items.forEach(s => { const p = getPct(s); if (p >= 100) done++; else if (p > 0) prog++; else pend++; });
+  const tiles = `<div class="overview-stats">
+    <div class="stat-tile"><div class="stat-num">${items.length}</div><div class="stat-label">${t('ov.total')}</div></div>
+    <div class="stat-tile"><div class="stat-num" style="color:var(--accent2)">${prog}</div><div class="stat-label">${t('ov.inprogress')}</div></div>
+    <div class="stat-tile"><div class="stat-num" style="color:#3fb950">${done}</div><div class="stat-label">${t('ov.done')}</div></div>
+    <div class="stat-tile"><div class="stat-num" style="color:var(--text-dim)">${pend}</div><div class="stat-label">${t('ov.pending')}</div></div>
+  </div>`;
+  return tiles + renderProjectProgressHtml(items);
+}
+
+// 종합 sidebar: per-project inbound/outbound progress, grouped by customer
+// (Fluence / EPC Power sectors). Progress = CT QTY of checklist-complete
+// shipments ÷ total booked CT QTY (count fallback). In-progress projects only.
+function renderProjectProgressHtml(items) {
+  const byCust = {};
+  items.forEach(s => {
+    const cust = s.customer || '(미분류)';
+    const name = s.name || '(미분류)';
+    const d = (s.direction || 'outbound') === 'inbound' ? 'in' : 'out';
+    const qty = Number(s.containerQty) || 0;
+    const isDone = getPct(s) === 100;
+    byCust[cust] = byCust[cust] || {};
+    byCust[cust][name] = byCust[cust][name] || { in: { tQ: 0, dQ: 0, n: 0, dN: 0 }, out: { tQ: 0, dQ: 0, n: 0, dN: 0 } };
+    const sl = byCust[cust][name][d];
+    sl.tQ += qty; sl.n += 1; if (isDone) { sl.dQ += qty; sl.dN += 1; }
+  });
+  const dp = sl => {
+    if (!sl.n) return null;
+    return sl.tQ > 0
+      ? { pct: Math.round(sl.dQ / sl.tQ * 100), done: sl.dQ, total: sl.tQ }
+      : { pct: Math.round(sl.dN / sl.n * 100), done: sl.dN, total: sl.n };
+  };
+  const bar = (icon, p, color) => p ? `<div class="proj-prog-row">
+      <span class="ppr-icon">${icon}</span>
+      <div class="ppr-bar"><div class="ppr-fill" style="width:${p.pct}%;background:${color}"></div></div>
+      <span class="ppr-val">${p.pct}%<span class="ppr-frac">${p.done}/${p.total}</span></span>
+    </div>` : '';
+
+  let html = '', total = 0;
+  Object.keys(byCust).sort().forEach(cust => {
+    const rows = Object.entries(byCust[cust]).map(([name, d]) => ({ name, ip: dp(d.in), op: dp(d.out) }))
+      .filter(r => (r.ip && r.ip.pct < 100) || (r.op && r.op.pct < 100))   // in-progress only
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!rows.length) return;
+    total += rows.length;
+    html += `<div class="proj-sector">${esc(cust)} · ${rows.length}</div>` +
+      rows.map(r => `<div class="proj-prog">
+        <div class="proj-prog-name">${esc(r.name)}</div>
+        ${bar('📥', r.ip, '#00d4aa')}
+        ${bar('📤', r.op, '#4f8fff')}
+      </div>`).join('');
+  });
+
+  if (!total) return `<div class="overview-list-label">${t('ov.projProgress')}</div><div class="chart-empty">${t('ov.noActiveProj')}</div>`;
+  return `<div class="overview-list-label">${t('ov.projProgress')}</div>` + html;
+}
+
+function renderOverviewCardHtml(s) {
+  const pct = getPct(s), b = getBadge(pct);
+  const dirIcon = (s.direction === 'inbound') ? '📥' : '📤';
+  const inner = `<div class="shipment-card compact ${activeId === s.id ? 'active' : ''}" onclick="selectShipment('${s.id}')">
+    <div class="card-compact-top">
+      <span class="card-ref">${esc(s.ref) || '—'}</span>
+      <span class="status-badge ${b.cls}">${b.label}</span>
+    </div>
+    <div class="card-name">${esc(s.name)}</div>
+    <div class="card-cust-tag">${dirIcon} ${esc(s.customer || '')}</div>
+  </div>`;
+  return cardRowHtml(s, inner);
+}
+
+// ── 종합 dashboard: per-customer trend line charts ───────────────────
+const ITEM_CAT_COLORS = { 'Gen6': '#4F8DF5', 'GSP2000': '#22C55E', 'GSP5000': '#F59E0B', 'SSTK': '#A855F7', 'M10': '#EC4899', '기타': '#94A3B8' };
+
+// Bucket a 'YYYY-MM-DD' date into a sortable key by granularity.
+function dateBucketKey(dateStr, gran) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return null;
+  const y = +dateStr.slice(0, 4), m = +dateStr.slice(5, 7), d = +dateStr.slice(8, 10);
+  if (gran === 'year') return String(y);
+  if (gran === 'month') return dateStr.slice(0, 7);
+  const dt = new Date(Date.UTC(y, m - 1, d));        // ISO week
+  const dow = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() + 4 - dow);
+  const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  const wk = Math.ceil((((dt - ys) / 86400000) + 1) / 7);
+  return `${dt.getUTCFullYear()}-W${String(wk).padStart(2, '0')}`;
+}
+
+// Number of ISO weeks in a year (52 or 53).
+function isoWeeksInYear(y) {
+  const dec28 = new Date(Date.UTC(y, 11, 28));
+  const dow = dec28.getUTCDay() || 7;
+  dec28.setUTCDate(dec28.getUTCDate() + 4 - dow);
+  const ys = new Date(Date.UTC(dec28.getUTCFullYear(), 0, 1));
+  return Math.ceil((((dec28 - ys) / 86400000) + 1) / 7);
+}
+// Full continuous bucket list for one year, so the time axis is complete
+// (e.g. every week W01..W52/53, or all 12 months).
+function yearBuckets(y, gran) {
+  if (gran === 'year') return [String(y)];
+  if (gran === 'month') return Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`);
+  return Array.from({ length: isoWeeksInYear(y) }, (_, i) => `${y}-W${String(i + 1).padStart(2, '0')}`);
+}
+
+// Build chart series for one customer: a line per item category. Y = summed
+// container quantity (CT QTY) per time bucket. `fixedBuckets` (optional) forces
+// a complete x-axis (every week/month of a selected year).
+function buildCustomerChart(items, gran, fixedBuckets) {
+  const catBucket = {}, dataBuckets = new Set();
+  items.forEach(s => {
+    const key = dateBucketKey(shipmentSortDate(s), gran);
+    if (!key) return;
+    const cat = flnItemCategory(s);
+    const qty = Number(s.containerQty) || 0;
+    dataBuckets.add(key);
+    (catBucket[cat] = catBucket[cat] || {});
+    catBucket[cat][key] = (catBucket[cat][key] || 0) + qty;
+  });
+  const buckets = (fixedBuckets && fixedBuckets.length) ? fixedBuckets : [...dataBuckets].sort();
+  const series = FLN_ITEM_CATEGORIES.filter(c => catBucket[c]).map(cat => ({
+    cat, color: ITEM_CAT_COLORS[cat] || '#888',
+    counts: buckets.map(b => catBucket[cat][b] || 0),
+  }));
+  let max = 1;
+  series.forEach(se => se.counts.forEach(v => { if (v > max) max = v; }));
+  return { buckets, series, max };
+}
+
+function lineChartSvg(chart, stripYear) {
+  const { buckets, series } = chart;
+  if (!buckets.length) return `<div class="chart-empty">${t('ov.noDate')}</div>`;
+  const visible = series.filter(se => !hiddenCats.has(se.cat));   // legend show/hide
+  let max = 1;
+  visible.forEach(se => se.counts.forEach(v => { if (v > max) max = v; }));
+
+  const W = 720, H = 210, padL = 34, padR = 14, padT = 18, padB = 30;
+  const n = buckets.length;
+  const xx = i => padL + (n === 1 ? (W - padL - padR) / 2 : i * (W - padL - padR) / (n - 1));
+  const yy = v => padT + (1 - v / max) * (H - padT - padB);
+
+  const steps = Math.min(max, 4);
+  let grid = '';
+  for (let i = 0; i <= steps; i++) {
+    const v = Math.round(max * i / steps);
+    const y = yy(v);
+    grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" class="chart-grid"/>`;
+    grid += `<text x="${padL - 5}" y="${y + 3}" class="chart-ylabel">${v}</text>`;
+  }
+
+  const lines = visible.map(se => {
+    const pts = se.counts.map((v, i) => `${xx(i)},${yy(v)}`).join(' ');
+    const dots = se.counts.map((v, i) => `<circle cx="${xx(i)}" cy="${yy(v)}" r="2.4" fill="${se.color}"/>`).join('');
+    const labels = se.counts.map((v, i) => v > 0
+      ? `<text x="${xx(i)}" y="${yy(v) - 5}" class="chart-vlabel" fill="${se.color}">${v}</text>` : '').join('');
+    return `<polyline fill="none" stroke="${se.color}" stroke-width="2" points="${pts}"/>${dots}${labels}`;
+  }).join('');
+
+  // Show ~12 evenly spaced x labels (year prefix stripped when a year is selected).
+  const step = Math.max(1, Math.ceil(n / 12));
+  const xlabels = buckets.map((b, i) => (i % step === 0)
+    ? `<text x="${xx(i)}" y="${H - padB + 15}" class="chart-xlabel">${stripYear ? b.replace(/^\d{4}-/, '') : b}</text>` : '').join('');
+
+  const legend = series.map(se => {
+    const off = hiddenCats.has(se.cat);
+    return `<span class="chart-leg${off ? ' off' : ''}" onclick="toggleChartCat('${se.cat}')">` +
+      `<span class="chart-leg-dot" style="background:${off ? 'transparent' : se.color};border:1.5px solid ${se.color}"></span>` +
+      `${flnItemCategoryLabel(se.cat)}</span>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="trend-chart" preserveAspectRatio="xMidYMid meet">${grid}${lines}${xlabels}</svg>
+    <div class="chart-legend">${legend}</div>`;
+}
+
+function toggleChartCat(cat) {
+  if (hiddenCats.has(cat)) hiddenCats.delete(cat); else hiddenCats.add(cat);
+  try { localStorage.setItem('freight_hidden_cats', JSON.stringify([...hiddenCats])); } catch {}
+  renderOverviewDashboard();
+}
+
+// 종합 main-panel dashboard: customer panels (대분류), each with a line chart
+// broken down by item category (중분류), over week/month/year buckets.
+function renderOverviewDashboard() {
+  const el = document.getElementById('overviewDashboard');
+  if (!el) return;
+  const gran = overviewGran;
+  const granBtns = [['week', 'gran.week'], ['month', 'gran.month'], ['year', 'gran.year']]
+    .map(([g, k]) => `<button class="gran-btn ${gran === g ? 'active' : ''}" onclick="setOverviewGran('${g}')">${t(k)}</button>`).join('');
+
+  // Multi-select year dropdown (checkboxes). Empty selection = all years (for
+  // year view) or the latest data year (for month/week, which need one year).
+  const years = effectiveYears(gran);
+  const summary = selectedYears.size ? [...selectedYears].sort().join(', ') : (gran === 'year' ? t('ov.allYears') : years.join(', '));
+  let ddItems = `<button type="button" class="year-dd-item all" onclick="clearYears()">${t('ov.allYears')}</button>`;
+  for (let y = 2021; y <= 2030; y++) ddItems += `<label class="year-dd-item"><input type="checkbox" ${selectedYears.has(String(y)) ? 'checked' : ''} onchange="toggleYear('${y}')"><span>${y}</span></label>`;
+  const yearDropdown = `<details class="year-dd">
+    <summary class="year-dd-btn">📅 <span id="yearDdSummary">${summary}</span> ▾</summary>
+    <div class="year-dd-panel">${ddItems}</div>
+  </details>`;
+
+  el.innerHTML = `<div class="dashboard-head">
+      <h2 class="dashboard-title">${t('ov.dashTitle')}</h2>
+      <div class="dash-controls"><div class="gran-tabs">${granBtns}</div>${yearDropdown}</div>
+    </div><div id="overviewPanels"></div>`;
+  renderOverviewPanels();
+}
+
+// Render just the per-customer chart panels (so toggling year checkboxes can
+// refresh charts without closing the open dropdown).
+function renderOverviewPanels() {
+  const host = document.getElementById('overviewPanels');
+  if (!host) return;
+  const gran = overviewGran;
+  const years = effectiveYears(gran);
+  const yearSet = new Set(years.map(String));
+
+  const byCust = {};
+  shipments.forEach(s => {
+    if (!yearSet.has((shipmentSortDate(s) || '').slice(0, 4))) return;
+    const c = s.customer || '(미분류)'; (byCust[c] = byCust[c] || []).push(s);
+  });
+
+  let fixedBuckets = [];
+  if (gran === 'year') fixedBuckets = years.map(String);
+  else years.forEach(y => { fixedBuckets = fixedBuckets.concat(yearBuckets(y, gran)); });
+  const stripYear = years.length === 1 && gran !== 'year';
+
+  const panels = Object.entries(byCust).map(([cust, items]) => {
+    const out = items.filter(s => (s.direction || 'outbound') === 'outbound').length;
+    const inb = items.length - out;
+    const chart = buildCustomerChart(items, gran, fixedBuckets);
+    return `<div class="cust-panel">
+      <div class="cust-panel-header">
+        <span class="cust-panel-name">${esc(cust)}</span>
+        <span class="cust-panel-meta">📤 ${out} · 📥 ${inb} · ${t('ov.total')} ${items.length}</span>
+      </div>
+      ${lineChartSvg(chart, stripYear)}
+    </div>`;
+  }).join('');
+
+  host.innerHTML = panels || `<div class="chart-empty">${selectedYears.size ? t('ov.noYearData').replace('{year}', [...selectedYears].sort().join(', ')) : t('sidebar.empty')}</div>`;
+}
+
+// Latest year that has shipment data (fallback: current year).
+function effectiveYear() {
+  let maxY = 0;
+  shipments.forEach(s => { const y = +(shipmentSortDate(s) || '').slice(0, 4); if (y && y > maxY) maxY = y; });
+  return maxY || new Date().getFullYear();
+}
+function dataYears() {
+  const ys = new Set();
+  shipments.forEach(s => { const y = +(shipmentSortDate(s) || '').slice(0, 4); if (y) ys.add(y); });
+  return [...ys].sort((a, b) => a - b);
+}
+// Years to actually render: explicit selection if any; else all data years
+// (year view) or just the latest year (month/week, which must show one year).
+function effectiveYears(gran) {
+  if (selectedYears.size) return [...selectedYears].map(Number).sort((a, b) => a - b);
+  if (gran === 'year') { const d = dataYears(); return d.length ? d : [new Date().getFullYear()]; }
+  return [effectiveYear()];
+}
+
+function setOverviewGran(g) {
+  overviewGran = g;
+  try { localStorage.setItem('freight_ov_gran', g); } catch {}
+  renderOverviewDashboard();
+}
+
+function persistYears() { try { localStorage.setItem('freight_ov_years', JSON.stringify([...selectedYears])); } catch {} }
+function updateYearSummary() {
+  const el = document.getElementById('yearDdSummary');
+  if (el) el.textContent = selectedYears.size ? [...selectedYears].sort().join(', ') : (overviewGran === 'year' ? t('ov.allYears') : effectiveYears(overviewGran).join(', '));
+}
+function toggleYear(y) {
+  y = String(y);
+  if (selectedYears.has(y)) selectedYears.delete(y); else selectedYears.add(y);
+  persistYears(); updateYearSummary(); renderOverviewPanels();
+}
+function clearYears() {
+  selectedYears.clear();
+  document.querySelectorAll('.year-dd-panel input[type=checkbox]').forEach(c => { c.checked = false; });
+  persistYears(); updateYearSummary(); renderOverviewPanels();
+}
+
+// Decide what the main panel shows: 종합 dashboard, a shipment detail, or empty.
+function updateMainPanel() {
+  const dash = document.getElementById('overviewDashboard');
+  const detail = document.getElementById('detail');
+  const empty = document.getElementById('emptyState');
+  if (!dash || !detail || !empty) return;
+  const s = shipments.find(x => x.id === activeId);
+  if (s) {
+    dash.classList.add('hidden');
+    renderDetail();
+  } else if (mainTab === 'all' && shipments.length) {
+    renderOverviewDashboard();
+    dash.classList.remove('hidden');
+    detail.classList.add('hidden');
+    empty.classList.add('hidden');
+  } else {
+    dash.classList.add('hidden');
+    detail.classList.add('hidden');
+    empty.classList.remove('hidden');
+  }
+}
+
+// Wrap a card with a multi-select checkbox (clicking the box toggles selection
+// without opening the shipment).
+function cardRowHtml(s, inner) {
+  const checked = selectedIds.has(s.id);
+  return `<div class="card-row${checked ? ' sel' : ''}">` +
+    `<span class="card-check${checked ? ' checked' : ''}" onclick="event.stopPropagation();toggleSelect('${s.id}')"></span>` +
+    inner + `</div>`;
+}
+
+function renderShipmentCardHtml(s) {
+  const pct = getPct(s), b = getBadge(pct);
+  const inProgress = pct > 0 && pct < 100;
+  const hold = is3pwHolding(s)
+    ? `<div style="margin-top:3px;"><span style="display:inline-block;background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:500;padding:1px 6px;border-radius:8px;">${t('detail.holding3pw')}</span></div>`
+    : '';
+  const inner = inProgress
+    ? `<div class="shipment-card ${activeId === s.id ? 'active' : ''}" onclick="selectShipment('${s.id}')">
+      <div class="card-ref">${esc(s.ref) || '—'}</div>
+      <div class="card-name">${esc(s.name)}</div>${hold}
+      <div class="card-progress-bar"><div class="card-progress-fill" style="width:${pct}%"></div></div>
+      <div class="card-meta"><span class="card-pct">${pct}%</span><span class="status-badge ${b.cls}">${b.label}</span></div>
+    </div>`
+    : `<div class="shipment-card compact ${activeId === s.id ? 'active' : ''}" onclick="selectShipment('${s.id}')">
+      <div class="card-compact-top">
+        <span class="card-ref">${esc(s.ref) || '—'}</span>
+        <span class="status-badge ${b.cls}">${b.label}</span>
+      </div>
+      <div class="card-name">${esc(s.name)}</div>${hold}
+    </div>`;
+  return cardRowHtml(s, inner);
+}
+
+function toggleSelect(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  renderSidebar();
+}
+function selectAllVisible() { currentVisibleIds.forEach(id => selectedIds.add(id)); renderSidebar(); }
+function clearSelection() { selectedIds.clear(); renderSidebar(); }
+// Master checkbox: select all visible if not already all selected, else deselect all.
+function toggleSelectAll() {
+  const total = currentVisibleIds.length;
+  if (total > 0 && selectedIds.size >= total) clearSelection(); else selectAllVisible();
+}
+function deleteSelected() {
+  const n = selectedIds.size;
+  if (!n) return;
+  if (!confirm(t('confirm.deleteSelected').replace('{n}', n))) return;
+  shipments = shipments.filter(s => !selectedIds.has(s.id));
+  if (activeId && selectedIds.has(activeId)) activeId = null;
+  selectedIds.clear();
+  localSave(); renderSidebar(); updateMainPanel();
+}
+function markSelectedComplete() {
+  const n = selectedIds.size;
+  if (!n) return;
+  if (!confirm(t('confirm.completeSelected').replace('{n}', n))) return;
+  const ds = new Date().toLocaleDateString(currentLang === 'ko' ? 'ko-KR' : 'en-US', { month: 'numeric', day: 'numeric' });
+  shipments.forEach(s => {
+    if (!selectedIds.has(s.id)) return;
+    const checks = {};
+    stepIdsFor(s).forEach(id => { checks[id] = { done: true, date: ds }; });
+    s.checks = checks;
+  });
+  selectedIds.clear();
+  localSave(); renderSidebar(); updateMainPanel();
+}
+function selectionBarHtml() {
+  const n = selectedIds.size;
+  const total = currentVisibleIds.length;
+  const masterCls = (total > 0 && n >= total) ? 'checked' : (n > 0 ? 'indet' : '');
+  return `<div class="select-bar">
+    <span class="select-master" onclick="toggleSelectAll()"><span class="card-check ${masterCls}"></span>${t('sel.all')}</span>
+    <button class="select-btn" onclick="clearSelection()">${t('sel.none')}</button>
+    <span class="select-count">${n ? n + t('sel.count') : ''}</span>
+    ${n ? `<button class="select-btn ok" onclick="markSelectedComplete()">✓ ${t('sel.complete')}</button>` : ''}
+    ${n ? `<button class="select-btn danger" onclick="deleteSelected()">🗑 ${t('sel.delete')}</button>` : ''}
+  </div>`;
+}
+
+// Best available date for "latest first" sorting (YYYY-MM-DD sorts lexically).
+function shipmentSortDate(s) {
+  return s.etd || s.eta || s.cargoCutoff || s.docCutoff || s.gateInDate || '';
+}
+
+// FLN(Fluence) 'By Item' view buckets the raw Item value into 5 categories
+// (fixed display order). Cube/ACC/CRT → Gen6, POD/SKID/SSTK → SSTK,
+// GSP2000/GSP5000 by model, everything else → 기타(Others).
+const FLN_ITEM_CATEGORIES = ['Gen6', 'GSP2000', 'GSP5000', 'SSTK', 'M10', '기타'];
+// Project-name overrides (checked first): these projects are classified by
+// project regardless of the raw Item value (e.g. blank/ad-hoc items that would
+// otherwise fall into 기타).
+const FLN_PJT_OVERRIDE = [
+  [/clearway/i, 'Gen6'],
+  [/tomago/i, 'GSP5000'],
+];
+function flnItemCategory(s) {
+  // Inbound shipments carry an explicit itemType (Gen6/GSP2000/GSP5000/SSTK/...) set
+  // at registration/import — group by it directly rather than guessing from the Item field.
+  if ((s.direction || 'outbound') === 'inbound' && s.itemType) {
+    return FLN_ITEM_CATEGORIES.includes(s.itemType) ? s.itemType : '기타';
+  }
+  if (/epc/i.test(s.customer || '')) return 'M10';   // EPC products are all M10
+  const name = String(s.name || '');
+  for (const [re, cat] of FLN_PJT_OVERRIDE) if (re.test(name)) return cat;
+  const item = String(s.item || '').toLowerCase();
+  if (/gsp\s*5000/.test(item)) return 'GSP5000';
+  if (/gsp\s*2000/.test(item)) return 'GSP2000';
+  if (/pod|skid|sstk/.test(item)) return 'SSTK';
+  if (/cube|acc|crt/.test(item)) return 'Gen6';
+  return '기타';
+}
+function flnItemCategoryLabel(cat) { return cat === '기타' ? t('view.itemEtc') : cat; }
+
+// Grouping key for the "project" axis. Inbound cargo's real project lives in the
+// PJT / Remark column (pjtName); its name field holds the item Description. Outbound's
+// name field already is the project name.
+function projectKeyOf(s) {
+  if ((s.direction || 'outbound') === 'inbound') return s.pjtName || s.name || '(미분류)';
+  return s.name || '(미분류)';
+}
+function renderProjectGroupsHtml(projects, keyPrefix, autoExpand) {
+  return Object.entries(projects).map(([proj, items]) => {
+    const projKey = keyPrefix + '::' + proj;
+    const projCollapsed = autoExpand ? false : collapsedProjects.has(projKey);
+    const projId = encodeURIComponent(projKey);
+
+    const ordered = latestSort
+      ? items.slice().sort((a, b) => shipmentSortDate(b).localeCompare(shipmentSortDate(a)))
+      : items;
+    const cards = ordered.map(renderShipmentCardHtml).join('');
+
+    return `<div class="project-group">
+      <div class="project-header" onclick="toggleProjectGroup('${projId}')">
+        <span class="project-toggle" style="transform:rotate(${projCollapsed ? '-90' : '0'}deg)">▼</span>
+        <span class="project-name">${esc(proj)}</span>
+        <span class="project-count">${items.length}${t('sidebar.count')}</span>
+      </div>
+      <div class="project-shipments" style="display:${projCollapsed ? 'none' : 'block'}">${cards}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderDirGroupsHtml(items, keyPrefix, autoExpand) {
+  const dirGroups = {};
+  items.forEach(s => {
+    const dir = s.direction || 'outbound';
+    const proj = s.name || '(미분류)';
+    if (!dirGroups[dir]) dirGroups[dir] = {};
+    if (!dirGroups[dir][proj]) dirGroups[dir][proj] = [];
+    dirGroups[dir][proj].push(s);
+  });
+
+  return DIRECTION_ORDER.filter(dir => dirGroups[dir]).map(dir => {
+    const projects = dirGroups[dir];
+    const dirTotal = Object.values(projects).reduce((sum, arr) => sum + arr.length, 0);
+    const dirKey = keyPrefix + '::' + dir;
+    const dirCollapsed = autoExpand ? false : collapsedDirGroups.has(dirKey);
+    const dirId = encodeURIComponent(dirKey);
+    const projectsHtml = renderProjectGroupsHtml(projects, dirKey, autoExpand);
+
+    return `<div class="dirgroup">
+      <div class="dirgroup-header" onclick="toggleDirGroup('${dirId}')">
+        <span class="dirgroup-toggle" style="transform:rotate(${dirCollapsed ? '-90' : '0'}deg)">▼</span>
+        <span class="dirgroup-icon">${dir === 'inbound' ? '📥' : '📤'}</span>
+        <span class="dirgroup-name">${t('direction.' + dir)}</span>
+        <span class="dirgroup-count">${dirTotal}${t('sidebar.count')}</span>
+      </div>
+      <div class="dirgroup-shipments" style="display:${dirCollapsed ? 'none' : 'block'}">${projectsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// FLN 'By Item' view: top-level item category (dirgroup styling) → PJT subgroups
+// (project styling) → cards. `byCat` maps category id → shipments[].
+function renderCategoryGroupsHtml(byCat, keyPrefix) {
+  return FLN_ITEM_CATEGORIES.filter(cat => byCat[cat]).map(cat => {
+    const catItems = byCat[cat];
+    const catKey = keyPrefix + '::' + cat;
+    const catCollapsed = collapsedDirGroups.has(catKey);
+    const catId = encodeURIComponent(catKey);
+
+    // Group the category's shipments by PJT (pjtName for inbound, name for outbound).
+    const byProj = {};
+    catItems.forEach(s => {
+      const proj = projectKeyOf(s);
+      if (!byProj[proj]) byProj[proj] = [];
+      byProj[proj].push(s);
+    });
+    const projectsHtml = renderProjectGroupsHtml(byProj, catKey, false);
+
+    return `<div class="dirgroup">
+      <div class="dirgroup-header" onclick="toggleDirGroup('${catId}')">
+        <span class="dirgroup-toggle" style="transform:rotate(${catCollapsed ? '-90' : '0'}deg)">▼</span>
+        <span class="dirgroup-name">${esc(flnItemCategoryLabel(cat))}</span>
+        <span class="dirgroup-count">${catItems.length}${t('sidebar.count')}</span>
+      </div>
+      <div class="dirgroup-shipments" style="display:${catCollapsed ? 'none' : 'block'}">${projectsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectCustomerFilter(custId) {
+  currentCustomerFilter = decodeURIComponent(custId);
+  try { localStorage.setItem('freight_customer_filter', currentCustomerFilter); } catch {}
+  selectedIds.clear();
+  renderSidebar();
+}
+
+function clearCustomerFilter() {
+  currentCustomerFilter = null;
+  try { localStorage.removeItem('freight_customer_filter'); } catch {}
+  selectedIds.clear();
+  renderSidebar();
+}
+
+function setCustomerViewMode(mode) {
+  customerViewMode = mode;
+  try { localStorage.setItem('freight_customer_view', mode); } catch {}
+  renderSidebar();
+}
+
+function toggleLatestSort() {
+  latestSort = !latestSort;
+  try { localStorage.setItem('freight_latest_sort', latestSort ? '1' : '0'); } catch {}
+  renderSidebar();
+}
+
+function selectShipment(id) { activeId = id; renderSidebar(); updateMainPanel(); }
+
+// ── Detail view ────────────────────────────────────────────────────
+function renderDetail() {
+  const s = shipments.find(x => x.id === activeId);
+  if (!s) return;
+  document.getElementById('emptyState').classList.add('hidden');
+  const detail = document.getElementById('detail');
+  detail.classList.remove('hidden');
+
+  const steps = getStepsFor(s);
+  const pct = getPct(s), b = getBadge(pct);
+  const doneCnt = steps.filter(st => s.checks[st.id]?.done).length;
+  const transit = s.etd && s.eta
+    ? Math.round((new Date(s.eta) - new Date(s.etd)) / 86400000) : null;
+
+  const checks = steps.map(st => {
+    const c = s.checks[st.id] || {};
+    return `<div class="check-item ${c.done ? 'checked' : ''}">
+      <div class="check-box ${c.done ? 'checked' : ''}" onclick="toggleCheck('${s.id}','${st.id}')"></div>
+      <span class="check-label">${st.label}</span>
+      <span class="check-date">${c.date || ''}</span>
+    </div>`;
+  }).join('');
+
+  const vesselSection = (s.vessel || s.etd || s.eta || s.containerQty || s.docCutoff || s.cargoCutoff || s.gateInDate) ? `
+    <div class="vessel-box">
+      <div class="box-header"><span class="section-label">${t('detail.vessel')}</span></div>
+      <div class="vessel-timeline">
+        <div class="vessel-node">
+          <div class="node-port">${esc(s.pol) || 'POL'}</div>
+          <div class="node-date">${fmtDate(s.etd)}</div>
+          <div class="node-label">${t('detail.etd')}</div>
+        </div>
+        <div class="vessel-arrow">──────────────▶</div>
+        <div class="vessel-node" style="align-items:flex-end">
+          <div class="node-port">${esc(s.pod) || 'POD'}</div>
+          <div class="node-date">${fmtDate(s.eta)}</div>
+          <div class="node-label">${t('detail.eta')}</div>
+        </div>
+      </div>
+      <div class="vessel-name-row">
+        ${s.vessel  ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.vessel.name')}</div><div class="vessel-field-value">${esc(s.vessel)}</div></div>` : ''}
+        ${s.voyage  ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.voyage')}</div><div class="vessel-field-value">${esc(s.voyage)}</div></div>` : ''}
+        ${s.carrier ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.carrier')}</div><div class="vessel-field-value">${esc(s.carrier)}</div></div>` : ''}
+        ${s.ref     ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.booking')}</div><div class="vessel-field-value">${esc(s.ref)}</div></div>` : ''}
+        ${transit   ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.transit')}</div><div class="vessel-field-value">${transit}${t('detail.transit.unit')}</div></div>` : ''}
+        ${s.containerQty ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.ctnrQty')}</div><div class="vessel-field-value">${esc(s.containerQty)}</div></div>` : ''}
+        ${s.docCutoff    ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.docCutoff')}</div><div class="vessel-field-value">${fmtDate(s.docCutoff)}</div></div>` : ''}
+        ${s.cargoCutoff  ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.cargoCutoff')}</div><div class="vessel-field-value">${fmtDate(s.cargoCutoff)}</div></div>` : ''}
+        ${s.gateInDate   ? `<div class="vessel-field"><div class="vessel-field-label">${t('detail.gateIn')}</div><div class="vessel-field-value">${fmtDate(s.gateInDate)}</div></div>` : ''}
+      </div>
+    </div>` : '';
+
+  const infoRows = [
+    ['detail.row.shipline',  esc(s.carrier),  'plain'],
+    ['detail.row.booking',   esc(s.ref),      'mono'],
+    ['detail.row.client',    esc(s.customer), 'plain'],
+    ['detail.row.pol',       esc(s.pol),      'plain'],
+    ['detail.row.pod',       esc(s.pod),      'plain'],
+    ['detail.row.direction', (s.direction === 'inbound' ? '📥 ' : '📤 ') + t('direction.' + (s.direction || 'outbound')), 'plain'],
+  ];
+  if (s.itemType)  infoRows.push(['form.itemType', esc(s.itemType), 'plain']);
+  if (s.pjtName)   infoRows.push(['form.pjtName', esc(s.pjtName), 'plain']);
+  if (s.invoiceNo) infoRows.push(['form.invoiceNo', esc(s.invoiceNo), 'plain']);
+  if (s.itemQty)   infoRows.push(['form.itemQty', esc(s.itemQty), 'plain']);
+  if (s.pltQty)    infoRows.push(['form.pltQty', esc(s.pltQty), 'plain']);
+  if (s.via3pw) {
+    infoRows.push(['form.via3pw', is3pwHolding(s) ? t('detail.holding3pw') : '✓', 'plain']);
+    if (s.warehouse3pwName)    infoRows.push(['form.warehouse3pwName', esc(s.warehouse3pwName), 'plain']);
+    if (s.warehouse3pwInDate)  infoRows.push(['form.warehouse3pwIn', esc(s.warehouse3pwInDate), 'plain']);
+    if (s.warehouse3pwOutDate) infoRows.push(['form.warehouse3pwOut', esc(s.warehouse3pwOutDate), 'plain']);
+  }
+  if (s.containerQty) infoRows.push(['detail.row.ctnrQty', esc(s.containerQty), 'plain']);
+  if (s.forwarder) infoRows.push(['detail.row.forwarder', esc(s.forwarder), 'plain']);
+  if (s.weight)    infoRows.push(['detail.row.weight', Number(s.weight).toLocaleString() + ' ' + t('detail.weight.unit'), 'plain']);
+  if (s.container) infoRows.push(['detail.row.container', esc(s.container), 'plain']);
+
+  const detailListHtml = infoRows.map(([key, val, kind]) => {
+    const valueHtml = val
+      ? `<span class="row-value${kind === 'mono' ? ' mono' : ''}">${val}</span>`
+      : `<span class="row-value muted">-</span>`;
+    return `<span class="info-pair"><span class="row-label">${t(key)}</span>${valueHtml}</span>`;
+  }).join('');
+
+  detail.innerHTML = `
+    <div class="detail-header">
+      <div style="min-width:0;flex:1;">
+        <div class="detail-title">${esc(s.name)}</div>
+        <div class="detail-list">${detailListHtml}</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-shrink:0;margin-top:4px;">
+        <span class="status-badge ${b.cls}" style="font-size:12px;padding:5px 12px;">${b.label} ${pct}%</span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;" onclick="openEditModal('${s.id}')">${t('detail.edit')}</button>
+        <button class="btn btn-danger" onclick="deleteShipment('${s.id}')">${t('detail.delete')}</button>
+      </div>
+    </div>
+    <div class="sections">
+      ${vesselSection}
+      <div class="checklist-box">
+        <div class="box-header">
+          <span class="section-label">${t('detail.checklist')}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--accent2)">${doneCnt} / ${steps.length}</span>
+        </div>
+        <div class="checklist-items">${checks}</div>
+      </div>
+      <div class="notes-box">
+        <div class="box-header"><span class="section-label">${t('detail.notes')}</span></div>
+        <textarea class="notes-textarea" placeholder="${t('detail.notes.ph')}"
+          oninput="saveNotes('${s.id}',this.value)">${esc(s.notes)}</textarea>
+      </div>
+    </div>`;
+}
+
+// ── Checklist & Notes ──────────────────────────────────────────────
+function toggleCheck(sid, stepId) {
+  const s = shipments.find(x => x.id === sid);
+  if (!s) return;
+  const c = s.checks[stepId] || {};
+  s.checks[stepId] = c.done ? {} : {
+    done: true,
+    date: new Date().toLocaleDateString(currentLang === 'ko' ? 'ko-KR' : 'en-US', { month: 'numeric', day: 'numeric' })
+  };
+  localSave(); renderSidebar(); renderDetail();
+}
+
+function saveNotes(sid, val) {
+  const s = shipments.find(x => x.id === sid);
+  if (s) { s.notes = val; localSave(); }
+}
+
+// ── Delete ─────────────────────────────────────────────────────────
+function deleteShipment(sid) {
+  if (!confirm(t('confirm.delete'))) return;
+  shipments = shipments.filter(x => x.id !== sid);
+  activeId = null;
+  localSave(); renderSidebar();
+  updateMainPanel();
+}
+
+// ── Modal ──────────────────────────────────────────────────────────
+function openNewModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = t('modal.new');
+  document.getElementById('modalSubmitBtn').textContent = t('modal.create.btn');
+  clearModalFields();
+  // Default the new shipment to the current tab's direction (수입/수출).
+  if (mainTab === 'inbound' || mainTab === 'outbound') setDirectionRadio(mainTab);
+  populateCustomerDropdown();
+  if (currentCustomerFilter) document.getElementById('f-customer').value = currentCustomerFilter;
+  document.getElementById('parseStatus')?.classList.add('hidden');
+  document.getElementById('newModal').classList.remove('hidden');
+  document.getElementById('f-customer').focus();
+}
+
+function openEditModal(sid) {
+  const s = shipments.find(x => x.id === sid);
+  if (!s) return;
+  editingId = sid;
+  document.getElementById('modalTitle').textContent = t('modal.edit');
+  document.getElementById('modalSubmitBtn').textContent = t('modal.edit.btn');
+  populateCustomerDropdown();
+  setDirectionRadio(s.direction || 'outbound');
+  document.getElementById('f-customer').value = s.customer || '';
+  ['name','ref','pol','pod','weight','forwarder','carrier','vessel','voyage'].forEach(k => setField('f-'+k, s[k]));
+  setField('f-ctnr', s.container);
+  setField('f-etd', s.etd); setField('f-eta', s.eta);
+  setField('f-ctnrqty', s.containerQty);
+  setField('f-doccutoff', s.docCutoff); setField('f-cargocutoff', s.cargoCutoff); setField('f-gatein', s.gateInDate);
+  setField('f-itemtype', s.itemType); setField('f-itemqty', s.itemQty);
+  setField('f-pjtname', s.pjtName); setField('f-pltqty', s.pltQty); setField('f-invoiceno', s.invoiceNo);
+  const wPresets = ['HTNS W/H', 'K&N W/H'];
+  const wn = s.warehouse3pwName || '';
+  const wsel = document.getElementById('f-warehouse3pwsel');
+  if (wsel) {
+    if (wPresets.includes(wn)) { wsel.value = wn; setField('f-warehouse3pwname', ''); }
+    else if (wn) { wsel.value = '기타'; setField('f-warehouse3pwname', wn); }
+    else { wsel.value = ''; setField('f-warehouse3pwname', ''); }
+  }
+  toggleWarehouseOther();
+  setField('f-warehouse3pwin', s.warehouse3pwInDate); setField('f-warehouse3pwout', s.warehouse3pwOutDate);
+  const via3 = document.getElementById('f-via3pw'); if (via3) via3.checked = !!s.via3pw;
+  toggleVia3pwFields();
+  document.getElementById('parseStatus')?.classList.add('hidden');
+  document.getElementById('newModal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('newModal').classList.add('hidden');
+  editingId = null;
+  clearModalFields();
+}
+
+function clearModalFields() {
+  ['f-name','f-ref','f-pol','f-pod','f-weight','f-forwarder',
+   'f-carrier','f-vessel','f-voyage','f-ctnr','f-etd','f-eta',
+   'f-ctnrqty','f-doccutoff','f-cargocutoff','f-gatein','f-itemtype','f-itemqty','f-pjtname','f-pltqty','f-invoiceno',
+   'f-warehouse3pwname','f-warehouse3pwin','f-warehouse3pwout']
+    .forEach(id => setField(id, ''));
+  const sel = document.getElementById('f-customer');
+  if (sel) sel.value = '';
+  const via3 = document.getElementById('f-via3pw'); if (via3) via3.checked = false;
+  toggleVia3pwFields();
+  const wsel = document.getElementById('f-warehouse3pwsel'); if (wsel) wsel.value = '';
+  toggleWarehouseOther();
+  setDirectionRadio(currentDirection);
+}
+
+function setField(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val || '';
+}
+
+function setDirectionRadio(value) {
+  document.querySelectorAll('input[name="f-direction"]').forEach(r => {
+    r.checked = r.value === value;
+  });
+  updateCutoffSectionVisibility();
+}
+
+function updateCutoffSectionVisibility() {
+  const dir = document.querySelector('input[name="f-direction"]:checked')?.value || 'outbound';
+  const cut = document.getElementById('cutoffSection');
+  if (cut) cut.style.display = dir === 'outbound' ? '' : 'none';
+  const inb = document.getElementById('inboundSection');
+  if (inb) inb.style.display = dir === 'inbound' ? '' : 'none';
+}
+
+// Reveal the 3rd-party-warehouse detail fields only when the "경유" box is ticked.
+function toggleVia3pwFields() {
+  const on = document.getElementById('f-via3pw')?.checked;
+  const box = document.getElementById('via3pwFields');
+  if (box) box.style.display = on ? '' : 'none';
+}
+
+// Show the free-text warehouse field only when "기타" is picked in the dropdown.
+function toggleWarehouseOther() {
+  const other = document.getElementById('f-warehouse3pwsel')?.value === '기타';
+  const txt = document.getElementById('f-warehouse3pwname');
+  if (txt) { txt.style.display = other ? '' : 'none'; if (!other) txt.value = ''; }
+}
+
+// Open a native date input's calendar when the field itself is clicked (not just
+// the small calendar glyph). showPicker needs a user gesture; ignore if blocked.
+function openPicker(el) { try { el.showPicker(); } catch (e) {} }
+
+function getFormValues() {
+  const v = id => document.getElementById(id)?.value.trim() || '';
+  return {
+    direction: document.querySelector('input[name="f-direction"]:checked')?.value || 'outbound',
+    customer: v('f-customer'),
+    name: v('f-name'), ref: v('f-ref'), pol: v('f-pol'), pod: v('f-pod'),
+    weight: v('f-weight'), forwarder: v('f-forwarder'), carrier: v('f-carrier'),
+    vessel: v('f-vessel'), voyage: v('f-voyage'), container: v('f-ctnr'),
+    etd: document.getElementById('f-etd')?.value || '',
+    eta: document.getElementById('f-eta')?.value || '',
+    containerQty: v('f-ctnrqty'),
+    docCutoff: document.getElementById('f-doccutoff')?.value || '',
+    cargoCutoff: document.getElementById('f-cargocutoff')?.value || '',
+    gateInDate: document.getElementById('f-gatein')?.value || '',
+    itemType: v('f-itemtype'),
+    itemQty: v('f-itemqty'),
+    pjtName: v('f-pjtname'),
+    pltQty: v('f-pltqty'),
+    invoiceNo: v('f-invoiceno'),
+    via3pw: document.getElementById('f-via3pw')?.checked || false,
+    warehouse3pwName: (v('f-warehouse3pwsel') === '기타' ? v('f-warehouse3pwname') : v('f-warehouse3pwsel')),
+    warehouse3pwInDate: document.getElementById('f-warehouse3pwin')?.value || '',
+    warehouse3pwOutDate: document.getElementById('f-warehouse3pwout')?.value || '',
+  };
+}
+
+function saveShipment() {
+  const data = getFormValues();
+  if (!data.customer) { alert(t('alert.customer')); return; }
+  if (!data.name) { alert(t('alert.name')); return; }
+  currentDirection = data.direction;
+  try { localStorage.setItem('freight_direction', currentDirection); } catch {}
+  if (editingId) {
+    const idx = shipments.findIndex(x => x.id === editingId);
+    if (idx !== -1) {
+      shipments[idx] = { ...shipments[idx], ...data };
+      localSave(); closeModal(); renderSidebar(); renderDetail();
+      showToast(t('toast.updated'));
+    }
+  } else {
+    const s = { id: 'S' + Date.now(), ...data, checks: {}, notes: '' };
+    shipments.unshift(s);
+    localSave(); closeModal(); selectShipment(s.id);
+    showToast(t('toast.created'));
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── Keyboard ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeSettingsModal(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); openNewModal(); }
+});
+
+// ── Init ───────────────────────────────────────────────────────────
+// ── Cloud sync (Supabase): shared data + login + realtime ───────────
+const SUPABASE_URL = 'https://mzypemedzeorzztqiflw.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_l3-2yltGDXusIGzwY-NQ4w_0LJJEj0T';
+const sb = (typeof supabase !== 'undefined' && SUPABASE_URL) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let cloudReady = false, _syncSnap = new Map(), _cloudTimer = null, _onceLoggedIn = false;
+
+function cloudEnabled() { return !!sb; }
+function snapshotSync() { _syncSnap = new Map(shipments.map(s => [s.id, JSON.stringify(s)])); }
+
+async function cloudPushAll(list) {
+  for (let i = 0; i < list.length; i += 400) {
+    const chunk = list.slice(i, i + 400).map(s => ({ id: s.id, data: s, updated_at: new Date().toISOString() }));
+    const { error } = await sb.from('shipments').upsert(chunk); if (error) throw error;
+  }
+}
+
+async function cloudLoad() {
+  if (!sb) return;
+  setSaveStatus('loading');
+  try {
+    // Supabase/PostgREST returns at most 1000 rows per request — page through all.
+    let rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('shipments').select('id,data').range(from, from + 999);
+      if (error) throw error;
+      rows = rows.concat(data || []);
+      if (!data || data.length < 1000) break;
+    }
+    // DB has data → it's the shared source of truth. DB empty → keep this browser's
+    // local data on screen but DON'T auto-upload (migration is an explicit step to
+    // avoid pushing partial/seed data). cloudMigrateUp() does the real upload.
+    if (rows.length) { shipments = rows.map(r => r.data).filter(Boolean); }
+    const cs = await sb.from('app_state').select('value').eq('key', 'customers').maybeSingle();
+    if (cs.data && Array.isArray(cs.data.value)) customers = cs.data.value;
+    else if (customers.length) { try { await sb.from('app_state').upsert({ key: 'customers', value: customers, updated_at: new Date().toISOString() }); } catch (e) {} }
+    cloudReady = true; snapshotSync();
+    try { localStorage.setItem('freight_shipments', JSON.stringify(shipments)); } catch (e) {}
+    setSaveStatus('ok');
+  } catch (e) { cloudReady = false; setSaveStatus('err'); console.error('cloudLoad failed', e); }
+}
+
+function cloudSync() {
+  if (!cloudReady || !sb) return;
+  clearTimeout(_cloudTimer);
+  _cloudTimer = setTimeout(async () => {
+    try {
+      const cur = new Map(shipments.map(s => [s.id, s]));
+      const changed = []; cur.forEach((s, id) => { if (_syncSnap.get(id) !== JSON.stringify(s)) changed.push(s); });
+      const deleted = [..._syncSnap.keys()].filter(id => !cur.has(id));
+      if (changed.length) { const { error } = await sb.from('shipments').upsert(changed.map(s => ({ id: s.id, data: s, updated_at: new Date().toISOString() }))); if (error) throw error; }
+      if (deleted.length) { const { error } = await sb.from('shipments').delete().in('id', deleted); if (error) throw error; }
+      snapshotSync(); setSaveStatus('ok');
+    } catch (e) { setSaveStatus('err'); console.error('cloudSync failed', e); }
+  }, 600);
+}
+
+async function cloudSaveCustomers() {
+  if (!cloudReady || !sb) return;
+  try { await sb.from('app_state').upsert({ key: 'customers', value: customers, updated_at: new Date().toISOString() }); } catch (e) {}
+}
+
+// Explicit one-time migration: push this browser's full dataset to the cloud.
+// Run once from the browser that holds the complete data (avoids partial uploads).
+async function cloudMigrateUp() {
+  if (!cloudReady || !sb) { showToast('로그인 후 사용하세요'); return; }
+  if (!confirm('이 브라우저의 데이터 ' + shipments.length + '건을 클라우드로 올립니다.\n(같은 ID는 덮어씁니다.) 계속할까요?')) return;
+  setSaveStatus('saving');
+  try { await cloudPushAll(shipments); await cloudSaveCustomers(); snapshotSync(); setSaveStatus('ok'); showToast(shipments.length + '건 업로드 완료'); }
+  catch (e) { setSaveStatus('err'); showToast('업로드 실패: ' + e); }
+}
+
+function subscribeRealtime() {
+  if (!sb) return;
+  sb.channel('rt-shipments').on('postgres_changes', { event: '*', schema: 'public', table: 'shipments' }, payload => {
+    try {
+      if (payload.eventType === 'DELETE') { const id = payload.old && payload.old.id; if (id) shipments = shipments.filter(s => s.id !== id); }
+      else { const d = payload.new && payload.new.data; if (!d) return; const i = shipments.findIndex(s => s.id === d.id); if (i >= 0) shipments[i] = d; else shipments.push(d); }
+      snapshotSync(); renderSidebar(); updateMainPanel();
+    } catch (e) {}
+  }).subscribe();
+}
+
+function showLoginOverlay(show) { const el = document.getElementById('loginOverlay'); if (el) el.style.display = show ? 'flex' : 'none'; }
+
+async function doLogin() {
+  if (!sb) return;
+  const email = (document.getElementById('loginEmail').value || '').trim();
+  const pw = document.getElementById('loginPw').value || '';
+  const errEl = document.getElementById('loginErr'), btn = document.getElementById('loginBtn');
+  errEl.textContent = ''; btn.disabled = true; btn.textContent = '로그인 중...';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) { errEl.textContent = '로그인 실패: ' + error.message; btn.disabled = false; btn.textContent = '로그인'; }
+  } catch (e) { errEl.textContent = '오류: ' + e; btn.disabled = false; btn.textContent = '로그인'; }
+}
+
+async function doLogout() { if (sb) { try { await sb.auth.signOut(); } catch (e) {} } location.reload(); }
+
+async function onLoggedIn() {
+  showLoginOverlay(false);
+  const lr = document.getElementById('logoutRow'); if (lr) lr.style.display = '';
+  if (_onceLoggedIn) return; _onceLoggedIn = true;
+  await cloudLoad();
+  subscribeRealtime();
+  applyLang(); renderSidebar(); updateMainPanel();
+}
+
+async function init() {
+  await loadCustomers();
+  await loadApiKey();
+  await localLoad();
+  loadInbound();
+  applyLang();
+  updateMainPanel();
+  if (cloudEnabled()) {
+    sb.auth.onAuthStateChange((_e, session) => { if (session) onLoggedIn(); else showLoginOverlay(true); });
+    try { const { data } = await sb.auth.getSession(); if (data.session) onLoggedIn(); else showLoginOverlay(true); }
+    catch (e) { showLoginOverlay(true); }
+  }
+}
+init();
+</script>
+</body>
+</html>
