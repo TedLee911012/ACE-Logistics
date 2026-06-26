@@ -11,9 +11,9 @@
 <script>try{if(localStorage.getItem('freight_theme')==='light')document.documentElement.classList.add('theme-light');}catch(e){}</script>
 <style>
   :root {
-    --bg: #0f1117; --surface: #1a1d27; --surface2: #222638; --border: #2e3250;
-    --accent: #4f8fff; --accent2: #00d4aa; --warn: #ff6b35;
-    --text: #e8eaf0; --text-dim: #7880a0; --done: #00d4aa;
+    --bg: #070b12; --surface: #0c1824; --surface2: #10222e; --border: #173f4a;
+    --accent: #22d3ee; --accent2: #22e39a; --warn: #f0b429;
+    --text: #d7f4fb; --text-dim: #5e93a2; --done: #22e39a;
     --mono: 'IBM Plex Mono', monospace; --sans: 'Noto Sans KR', sans-serif;
   }
   html.theme-light {
@@ -21,6 +21,11 @@
     --accent: #2563eb; --accent2: #0d9488; --warn: #d9531e;
     --text: #1a1d27; --text-dim: #687087; --done: #0d9488;
   }
+  /* Cyber Neon (dark only) — grid backdrop + neon glow */
+  html:not(.theme-light) body { background-image: linear-gradient(rgba(34,211,238,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.045) 1px, transparent 1px); background-size: 22px 22px; background-attachment: fixed; }
+  html:not(.theme-light) .main-tab.active { box-shadow: 0 0 14px rgba(34,211,238,0.30); }
+  html:not(.theme-light) .card-progress-fill, html:not(.theme-light) .ppr-bar > div { box-shadow: 0 0 9px rgba(34,211,238,0.45); }
+  html:not(.theme-light) .brand-logo { filter: drop-shadow(0 0 5px rgba(34,211,238,0.22)); }
   .settings-section-label { font-size: 11px; font-weight: 700; color: var(--text-dim); font-family: var(--mono); letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
   .theme-toggle { display: flex; gap: 6px; }
   .theme-opt { flex: 1; padding: 9px 0; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--mono); color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; }
