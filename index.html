@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+KR:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>try{if(localStorage.getItem('freight_theme')==='light')document.documentElement.classList.add('theme-light');}catch(e){}</script>
 <style>
@@ -21,11 +22,16 @@
     --accent: #2563eb; --accent2: #0d9488; --warn: #d9531e;
     --text: #1a1d27; --text-dim: #687087; --done: #0d9488;
   }
-  /* Cyber Neon (dark only) — grid backdrop + neon glow */
-  html:not(.theme-light) body { background-image: linear-gradient(rgba(34,211,238,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.045) 1px, transparent 1px); background-size: 22px 22px; background-attachment: fixed; }
-  html:not(.theme-light) .main-tab.active { box-shadow: 0 0 14px rgba(34,211,238,0.30); }
-  html:not(.theme-light) .card-progress-fill, html:not(.theme-light) .ppr-bar > div { box-shadow: 0 0 9px rgba(34,211,238,0.45); }
-  html:not(.theme-light) .brand-logo { filter: drop-shadow(0 0 5px rgba(34,211,238,0.22)); }
+  /* Cyber Neon (dark only) — grid backdrop + glass panels + neon glow */
+  html:not(.theme-light) body { background-image: linear-gradient(rgba(34,211,238,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.08) 1px, transparent 1px); background-size: 26px 26px; background-attachment: fixed; }
+  html:not(.theme-light) .sidebar { background: rgba(9,18,28,0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  html:not(.theme-light) .cust-panel, html:not(.theme-light) .stat-tile { background: rgba(11,22,33,0.62); border-color: rgba(34,211,238,0.2); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  html:not(.theme-light) .cust-panel { box-shadow: inset 0 0 32px rgba(34,211,238,0.05); }
+  html:not(.theme-light) .main-tab.active { box-shadow: 0 0 16px rgba(34,211,238,0.38); }
+  html:not(.theme-light) .btn-primary { box-shadow: 0 0 16px rgba(34,211,238,0.45); }
+  html:not(.theme-light) .card-progress-fill, html:not(.theme-light) .ppr-bar > div { box-shadow: 0 0 10px rgba(34,211,238,0.55); }
+  html:not(.theme-light) .stat-tile .stat-num { text-shadow: 0 0 13px rgba(34,211,238,0.22); }
+  html:not(.theme-light) .brand-logo { filter: drop-shadow(0 0 6px rgba(34,211,238,0.28)); }
   .settings-section-label { font-size: 11px; font-weight: 700; color: var(--text-dim); font-family: var(--mono); letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
   .theme-toggle { display: flex; gap: 6px; }
   .theme-opt { flex: 1; padding: 9px 0; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--mono); color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; }
@@ -350,6 +356,20 @@
 
   /* Customer select */
   .form-input option { background: var(--surface2); color: var(--text); }
+  /* Export dropdown */
+  .export-dd { position: relative; }
+  .btn-export { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; font-family: var(--sans); color: var(--accent); background: transparent; border: 1px solid var(--accent); cursor: pointer; transition: all 0.15s; }
+  .btn-export:hover { background: var(--surface2); }
+  html:not(.theme-light) .btn-export { box-shadow: 0 0 12px rgba(34,211,238,0.25); }
+  html:not(.theme-light) .btn-export:hover { box-shadow: 0 0 18px rgba(34,211,238,0.5); }
+  .btn-import { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; font-size: 12.5px; font-weight: 500; font-family: var(--sans); color: var(--text-dim); background: transparent; border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; }
+  .btn-import:hover { color: var(--text); border-color: var(--text-dim); background: var(--surface2); }
+  .export-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 200; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px; min-width: 238px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .export-head { font-size: 10px; color: var(--text-dim); font-family: var(--mono); letter-spacing: 0.5px; padding: 7px 8px 4px; text-transform: uppercase; }
+  .export-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 9px; border-radius: 7px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .export-item:hover { background: var(--surface2); }
+  .export-sub { font-size: 10px; color: var(--text-dim); font-family: var(--mono); white-space: nowrap; }
+  html:not(.theme-light) .export-item:hover { box-shadow: inset 0 0 12px rgba(34,211,238,0.12); }
 </style>
 </head>
 <body>
@@ -400,8 +420,15 @@
         <span id="syncText">불러오는 중...</span>
       </div>
       <button class="btn-lang" id="langToggle" onclick="toggleLang()">EN</button>
-      <button class="btn-icon" onclick="importForCurrentTab()" title="Excel 가져오기" data-i18n-title="header.importExcel"><svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle"><path d="M8 1v8m0 0L5 6m3 3l3-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5a1 1 0 001 1h10a1 1 0 001-1V11" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <button class="btn-icon" onclick="openSettingsModal()" title="API Key Settings">⚙️</button>
+      <div class="export-dd">
+        <button class="btn-export" id="exportBtn" onclick="toggleExportMenu(event)" title="Excel 내보내기" data-i18n-title="header.exportExcel">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8m0 0l3-3m-3 3L5 7"/><path d="M2.5 11.5v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1.5"/></svg>
+          <span data-i18n="header.export">다운로드</span>
+          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="opacity:.75"><path d="M3 4.5L6 7.5L9 4.5"/></svg>
+        </button>
+        <div id="exportMenu" class="export-menu" style="display:none;" onclick="event.stopPropagation()"></div>
+      </div>
+      <button class="btn-icon" onclick="openSettingsModal()" title="설정" data-i18n-title="settings.title">⚙️</button>
       <button class="btn btn-primary" onclick="openNewModal()" data-i18n="header.new">+ 신규 화물</button>
     </div>
   </header>
@@ -648,6 +675,12 @@
       <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="doLogout()" data-i18n="settings.logout">🚪 로그아웃</button>
     </div>
 
+    <div class="settings-section-label" data-i18n="settings.dataSection" style="margin-top:16px;">데이터 가져오기</div>
+    <div class="form-group">
+      <button class="btn btn-ghost" style="width:100%; justify-content:center; margin-bottom:6px;" onclick="closeSettingsModal(); importInboundExcel()" data-i18n="settings.importInbound">⬆ 인바운드 Excel 가져오기</button>
+      <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="closeSettingsModal(); importExcel()" data-i18n="settings.importOutbound">⬆ 아웃바운드 Excel 가져오기</button>
+    </div>
+
     <div class="settings-section-label" data-i18n="settings.apiSection" style="margin-top:16px;">API 키 (PDF 자동 파싱)</div>
     <div class="form-group">
       <label class="form-label" data-i18n="settings.label">API 키</label>
@@ -694,7 +727,8 @@ const TR = {
   ko: {
     'header.new': '+ 신규 화물',
     'header.settings': '⚙️',
-    'header.importExcel': 'Excel 가져오기',
+    'header.importExcel': 'Excel 가져오기', 'header.exportExcel': 'Excel 다운로드', 'header.export': '다운로드', 'header.import': '가져오기',
+    'export.all': '전체', 'export.allInbound': '전체 인바운드', 'export.allOutbound': '전체 아웃바운드', 'export.allBoth': '전체 (인+아웃)', 'export.byCustomer': '고객별 개별',
     'header.exportExcel': 'Excel 내보내기',
     'header.status.loading': '불러오는 중...',
     'header.status.ok': '저장됨',
@@ -795,6 +829,7 @@ const TR = {
     'settings.general': '일반 설정', 'settings.theme': '테마',
     'settings.theme.dark': '🌙 다크', 'settings.theme.light': '☀️ 라이트(흰색)',
     'settings.account': '계정 (Account)', 'settings.logout': '🚪 로그아웃', 'settings.uploadBtn': '⬆ 이 브라우저 데이터 클라우드로 올리기',
+    'settings.dataSection': '데이터 가져오기', 'settings.importInbound': '⬆ 인바운드 Excel 가져오기', 'settings.importOutbound': '⬆ 아웃바운드 Excel 가져오기',
     'settings.apiSection': 'API 키 (PDF 자동 파싱)',
     'settings.label': 'API 키',
     'settings.ph': 'AIza... (Gemini 무료) 또는 sk-ant-... (Anthropic)',
@@ -841,7 +876,8 @@ const TR = {
   en: {
     'header.new': '+ New Shipment',
     'header.settings': '⚙️',
-    'header.importExcel': 'Import Excel',
+    'header.importExcel': 'Import Excel', 'header.exportExcel': 'Download Excel', 'header.export': 'Download', 'header.import': 'Import',
+    'export.all': 'All', 'export.allInbound': 'All inbound', 'export.allOutbound': 'All outbound', 'export.allBoth': 'All (in + out)', 'export.byCustomer': 'By customer',
     'header.exportExcel': 'Export Excel',
     'header.status.loading': 'Loading...',
     'header.status.ok': 'Saved',
@@ -937,6 +973,7 @@ const TR = {
     'settings.general': 'General', 'settings.theme': 'Theme',
     'settings.theme.dark': '🌙 Dark', 'settings.theme.light': '☀️ Light',
     'settings.account': 'Account', 'settings.logout': '🚪 Log out', 'settings.uploadBtn': "⬆ Upload this browser's data to cloud",
+    'settings.dataSection': 'Import data', 'settings.importInbound': '⬆ Import inbound Excel', 'settings.importOutbound': '⬆ Import outbound Excel',
     'settings.apiSection': 'API Key (PDF Auto-fill)',
     'settings.label': 'API Key',
     'settings.ph': 'AIza... (Gemini Free) or sk-ant-... (Anthropic)',
@@ -1574,14 +1611,16 @@ async function exportEpcInboundExcel(cust) {
   showToast(t('toast.excelExported'));
 }
 
-async function exportInboundExcel(customer) {
+async function exportInboundExcel(customer, opts) {
   if (typeof ExcelJS === 'undefined') { showToast(t('excel.lib.err')); return; }
   const cust = customer || currentCustomerFilter || 'Fluence';
   if (/epc/i.test(cust)) return exportEpcInboundExcel(cust);
   // Inbound list = inbound shipments for this customer, grouped by item type.
-  const items = shipments
+  // opts.onlyTypes restricts to certain item types so FLN exports one file per type.
+  let items = shipments
     .filter(s => (s.direction || 'outbound') === 'inbound' && (s.customer || '(미분류)') === cust)
     .map(shipmentToInboundRow);
+  if (opts && opts.onlyTypes) items = items.filter(r => opts.onlyTypes.includes(r.category));
   if (!items.length) { showToast(t('toast.excelNoData')); return; }
 
   // group rows by source category (worksheet)
@@ -1621,7 +1660,7 @@ async function exportInboundExcel(customer) {
     });
   });
 
-  await downloadWorkbook(wb, `${customerFilePrefix(cust)}_Free issued item list.xlsx`);
+  await downloadWorkbook(wb, `${customerFilePrefix(cust)}${opts && opts.filePrefix ? '_' + opts.filePrefix : ''}_Free issued item list.xlsx`);
   showToast(t('toast.excelExported'));
 }
 
@@ -1827,6 +1866,92 @@ function customerFilePrefix(customer) {
   if (/fluence|fln/i.test(customer)) return 'FLN';
   return String(customer || '').replace(/[^\w가-힣]+/g, '_') || 'Shipment';
 }
+
+// ── Bulk Excel export (header dropdown) ─────────────────────────────
+function downloadBlobFile(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+// Run an export fn but capture its workbook instead of downloading it (to zip many).
+async function captureWorkbook(fn) {
+  let cap = null;
+  const origDl = window.downloadWorkbook, origToast = window.showToast;
+  window.downloadWorkbook = (wb, fileName) => { cap = { wb, fileName }; return Promise.resolve(); };
+  window.showToast = () => {};
+  try { await fn(); } catch (e) { console.error('export capture', e); }
+  finally { window.downloadWorkbook = origDl; window.showToast = origToast; }
+  return cap;
+}
+function inboundCustomers() { return [...new Set(shipments.filter(s => (s.direction || 'outbound') === 'inbound').map(s => s.customer || '(미분류)'))]; }
+function outboundCustomers() { return [...new Set(shipments.filter(s => (s.direction || 'outbound') === 'outbound').map(s => s.customer || '(미분류)'))]; }
+
+// FLN(Fluence) inbound = one file PER item type (Gen6 / GSP / SSTK), not bundled.
+// Other customers (EPC) = a single inbound file. Returns [{cust, label, opts}].
+let _inbJobs = [];
+function inboundExportJobs() {
+  const jobs = [];
+  inboundCustomers().forEach(c => {
+    const present = new Set(shipments.filter(s => (s.direction || 'outbound') === 'inbound' && (s.customer || '(미분류)') === c).map(s => s.itemType));
+    if (/fluence|fln/i.test(c)) {
+      const matched = new Set();
+      [['Gen6', ['Gen6']], ['GSP', ['GSP2000', 'GSP5000']], ['SSTK', ['SSTK']]].forEach(([key, types]) => {
+        if (types.some(t => present.has(t))) { types.forEach(t => matched.add(t)); jobs.push({ cust: c, label: `${c} · ${key}`, opts: { onlyTypes: types, filePrefix: key } }); }
+      });
+      const others = [...present].filter(t => t && !matched.has(t));
+      if (others.length) jobs.push({ cust: c, label: `${c} · 기타`, opts: { onlyTypes: others, filePrefix: '기타' } });
+    } else {
+      jobs.push({ cust: c, label: `${c} · ${t('direction.inbound')}`, opts: null });
+    }
+  });
+  return jobs;
+}
+function exportInboundJob(i) { closeExportMenu(); const j = _inbJobs[i]; if (j) exportInboundExcel(j.cust, j.opts); }
+
+async function exportBulk(kind) {            // 'inbound' | 'outbound' | 'all'
+  closeExportMenu();
+  if (typeof JSZip === 'undefined') { showToast('압축 모듈 로딩 중 — 잠시 후 다시'); return; }
+  showToast('내보내는 중...');
+  const zip = new JSZip();
+  const jobs = [];
+  if (kind === 'inbound' || kind === 'all') inboundExportJobs().forEach(j => jobs.push(['inbound', j]));
+  if (kind === 'outbound' || kind === 'all') outboundCustomers().forEach(c => jobs.push(['outbound', { cust: c }]));
+  let count = 0;
+  for (const [dir, j] of jobs) {
+    const cap = await captureWorkbook(() => dir === 'inbound' ? exportInboundExcel(j.cust, j.opts) : exportExcelForCustomer(j.cust));
+    if (cap && cap.wb) { try { zip.file(cap.fileName, await cap.wb.xlsx.writeBuffer()); count++; } catch (e) {} }
+  }
+  if (!count) { showToast(t('toast.excelNoData')); return; }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  downloadBlobFile(blob, `ACE_${kind}_${new Date().toISOString().slice(0, 10)}.zip`);
+  showToast(`${count}개 파일 ZIP 다운로드`);
+}
+
+function closeExportMenu() { const m = document.getElementById('exportMenu'); if (m) m.style.display = 'none'; }
+function toggleExportMenu(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('exportMenu'); if (!m) return;
+  if (m.style.display === 'block') { m.style.display = 'none'; return; }
+  renderExportMenu(); m.style.display = 'block';
+}
+function renderExportMenu() {
+  const m = document.getElementById('exportMenu'); if (!m) return;
+  _inbJobs = inboundExportJobs();
+  const outb = outboundCustomers();
+  const esq = s => String(s).replace(/'/g, "\\'");
+  const item = (label, onclick, sub) => `<div class="export-item" onclick="${onclick}"><span>${label}</span>${sub ? `<span class="export-sub">${sub}</span>` : ''}</div>`;
+  let html = `<div class="export-head">${t('export.all')}</div>`;
+  html += item('📥 ' + t('export.allInbound'), "exportBulk('inbound')", _inbJobs.length + '·ZIP');
+  html += item('📤 ' + t('export.allOutbound'), "exportBulk('outbound')", outb.length + '·ZIP');
+  html += item('🗂 ' + t('export.allBoth'), "exportBulk('all')", 'ZIP');
+  const indiv = [];
+  _inbJobs.forEach((j, i) => indiv.push(item(esc(j.label), `exportInboundJob(${i})`)));
+  outb.forEach(c => indiv.push(item(`${esc(c)} · ${t('direction.outbound')}`, `closeExportMenu();exportExcelForCustomer('${esq(c)}')`)));
+  if (indiv.length) html += `<div class="export-head">${t('export.byCustomer')}</div>` + indiv.join('');
+  m.innerHTML = html;
+}
+document.addEventListener('click', closeExportMenu);
 
 function downloadWorkbook(wb, fileName) {
   return wb.xlsx.writeBuffer().then(buf => {
